@@ -186,6 +186,14 @@ async function refreshAllPrices(){
  localStorage.setItem(PRICE_STORE_KEY,JSON.stringify(PRICES));await saveServerState();document.getElementById('holdings').innerHTML=holdingsTable();
  note.textContent='자동조회 완료 '+ok+'종목'+(fail?' · 실패 '+fail+'종목: '+failed.join(', '):'')+(last?' · '+String(last).replace('T',' ').slice(0,16):'');
 }
+async function refreshAllAccountPrices(){
+ const note=document.getElementById('priceUpdateNote');let ok=0,fail=0,total=0,last='',failed=[];
+ const jobs=[];for(const a of names)for(const h of calculatedHoldings(a).filter(h=>(Number(h['수량'])||0)>0))jobs.push([a,h]);total=jobs.length;
+ note.textContent='로그인 자동 시세 조회 중... 0/'+total;
+ for(let i=0;i<jobs.length;i++){const [a,h]=jobs[i];try{const r=await fetch('/api/quote?name='+encodeURIComponent(h['상품명']),{cache:'no-store'});if(!r.ok)throw 0;const d=await r.json();if(Number(d.price)>0){PRICES[priceKey(a,h['상품명'])]=Number(d.price);ok++;if(d.tradedAt)last=d.tradedAt}else throw 0}catch(e){fail++;failed.push(a+' · '+h['상품명'])}note.textContent='로그인 자동 시세 조회 중... '+(i+1)+'/'+total}
+ localStorage.setItem(PRICE_STORE_KEY,JSON.stringify(PRICES));await saveServerState();render();
+ note.textContent='전체 자동조회 완료 '+ok+'종목'+(fail?' · 실패 '+fail+'종목: '+failed.join(', '):'')+(last?' · '+String(last).replace('T',' ').slice(0,16):'');
+}
 function render(){updateSummary();tabs();updateProductSelect();updateDividendProductSelect();document.getElementById('holdings').innerHTML=holdingsTable();renderHistory();renderDividendInputHistory();renderDivs()}
 function renderDivs(){const q=document.getElementById('search').value.trim().toLowerCase();let rows=allDividendRows(current).filter(r=>!q||String(r['상품명']||'').toLowerCase().includes(q));let preferred=['상품명','기준일','지급일','배당단가','배당수량','총 배당금액','실 배당금액','환율','세전배당금액($)','세후배당금액($)','세후배당금액','평단가'];let cols=preferred.filter(c=>rows.some(r=>r[c]!=null));document.getElementById('dividends').innerHTML=table(rows,cols)}
 function selectTab(n){current=n;render()}document.getElementById('search').addEventListener('input',renderDivs);document.getElementById('tradeDate').value=new Date().toISOString().slice(0,10);
@@ -217,7 +225,7 @@ async function loadServerState(){
     const serverTrades=Array.isArray(data.trades)?data.trades:[],serverDivs=Array.isArray(data.dividends)?data.dividends:[],serverPrices=data.prices&&typeof data.prices==='object'?data.prices:{},serverCapital=data.capital&&typeof data.capital==='object'?data.capital:null;
     const localTrades=TRADES,localDivs=USER_DIVS;
     if(serverTrades.length===0&&serverDivs.length===0&&Object.keys(serverPrices).length===0&&(localTrades.length||localDivs.length||Object.keys(PRICES).length)){TRADES=localTrades;USER_DIVS=localDivs;await saveServerState()}else{TRADES=serverTrades;USER_DIVS=serverDivs;PRICES=serverPrices;if(serverCapital)CAPITAL={...DEFAULT_CAPITAL,...serverCapital};localStorage.setItem(CAPITAL_STORE_KEY,JSON.stringify(CAPITAL));localStorage.setItem(STORE_KEY,JSON.stringify(TRADES));localStorage.setItem(DIV_STORE_KEY,JSON.stringify(USER_DIVS));localStorage.setItem(PRICE_STORE_KEY,JSON.stringify(PRICES))}
-    hideLogin();render();
+    hideLogin();render();refreshAllAccountPrices();
   }catch(e){document.getElementById('loginError').textContent='데이터를 불러오지 못했습니다.';showLogin()}
 }
 loadServerState();
