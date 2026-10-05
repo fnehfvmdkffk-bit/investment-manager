@@ -6,7 +6,7 @@ export default async function handler(req,res){
   const r=await fetch('https://etfcal.com/etfs',{headers:{'User-Agent':'Mozilla/5.0'}});
   if(!r.ok)throw new Error('source');
   const html=await r.text(),plain=clean(html),norm=x=>String(x).replace(/\s+/g,'').toLowerCase();
-  const n=norm(name),pos=norm(plain).indexOf(n); if(pos<0)return res.status(404).json({error:'not_found'});
+  const pos=plain.indexOf(name); if(pos<0)return res.status(404).json({error:'not_found'});
   const raw=plain.slice(Math.max(0,pos-100),pos+name.length+300);
   const dm=raw.match(/(20\d{2}-\d{2}-\d{2})/), wm=raw.match(/([\d,]+(?:\.\d+)?)\s*원/);
   if(!dm||!wm)return res.status(404).json({error:'no_dividend'});
