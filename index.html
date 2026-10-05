@@ -28,14 +28,14 @@
 </div></section>
 <section class="card section trade-card"><details><summary style="cursor:pointer;font-weight:700;font-size:18px;padding:2px 0">배당 직접 입력 펼치기</summary><div style="margin-top:14px">
 <div class="trade-form">
-<div class="field"><label>기준일</label><input type="date" id="divBaseDate"></div>
+<div class="field"><label>배당락 전 거래일</label><input type="date" id="divBaseDate"></div>
 <div class="field"><label>지급일</label><input type="date" id="divPayDate"></div>
 <div class="field product"><label>종목</label><select id="divProduct"></select></div>
 <div class="field"><label>배당단가</label><input type="number" id="divUnit" min="0" step="any" placeholder="1주당 배당"></div>
-<div class="field"><label>배당수량 (기준일 자동)</label><input type="number" id="divQty" min="0" step="any" placeholder="자동 계산" readonly></div>
+<div class="field"><label>배당수량 (배당락 전 거래일 자동)</label><input type="number" id="divQty" min="0" step="any" placeholder="자동 계산" readonly></div>
 <div style="display:flex;gap:7px;flex-wrap:wrap"><button class="primary" onclick="openOfficialDividendSearch()">인터넷 배당 조회</button><button class="primary" onclick="addDividend()">배당 반영</button></div>
 </div>
-<div class="note">배당수량은 선택한 종목의 기준일 당시 보유수량으로 자동 계산됩니다. 총 배당금액은 배당단가 × 배당수량으로 계산되며 상단 누적 총배당에도 즉시 반영됩니다. <span id="officialHint"></span><br><span style="font-size:11px">※ 2026-10-05 기준 공식 운용사 자료와 기존 배당내역을 대조해 확인된 누락분을 반영했습니다.</span></div>
+<div class="note">배당수량은 선택한 종목의 배당락 전 거래일 당시 보유수량으로 자동 계산됩니다. 총 배당금액은 배당단가 × 배당수량으로 계산되며 상단 누적 총배당에도 즉시 반영됩니다. <span id="officialHint"></span><br><span style="font-size:11px">※ 2026-10-05 기준 공식 운용사 자료와 기존 배당내역을 대조해 확인된 누락분을 반영했습니다.</span></div>
 <div class="trade-history">
 <details>
 <summary style="cursor:pointer;font-weight:700;font-size:16px;padding:6px 0">입력 배당내역 보기</summary>
@@ -153,7 +153,7 @@ function renderDividendInputHistory(){
   const rs=USER_DIVS.filter(d=>d.account===current).sort((a,b)=>(b.payDate||'').localeCompare(a.payDate||'')||b.id-a.id);
   const el=document.getElementById('divInputHistory');
   if(!rs.length){el.innerHTML='<div class="empty">직접 입력한 배당이 없습니다.</div>';return}
-  el.innerHTML='<div class="tablebox"><table><thead><tr><th>기준일</th><th>지급일</th><th>종목</th><th>배당단가</th><th>배당수량</th><th>총 배당금액</th><th></th></tr></thead><tbody>'+
+  el.innerHTML='<div class="tablebox"><table><thead><tr><th>배당락 전 거래일</th><th>지급일</th><th>종목</th><th>배당단가</th><th>배당수량</th><th>총 배당금액</th><th></th></tr></thead><tbody>'+
   rs.map(d=>`<tr><td>${esc(d.baseDate)}</td><td>${esc(d.payDate)}</td><td>${esc(d.product)}</td><td class="num">${esc(fmt(d.unit))}</td><td class="num">${esc(fmt(d.qty))}</td><td class="num">${esc(fmt(d.unit*d.qty))}</td><td><button class="danger" onclick="deleteDividend(${d.id})">취소</button></td></tr>`).join('')+
   '</tbody></table></div>';
 }
@@ -195,10 +195,12 @@ async function refreshAllAccountPrices(){
  localStorage.setItem(PRICE_STORE_KEY,JSON.stringify(PRICES));await saveServerState();render();
  note.textContent='전체 자동조회 완료 '+ok+'종목'+(fail?' · 실패 '+fail+'종목: '+failed.join(', '):'')+(last?' · '+String(last).replace('T',' ').slice(0,16):'');
 }
+const KRX_HOLIDAYS=new Set(['2024-01-01','2024-02-09','2024-02-12','2024-03-01','2024-04-10','2024-05-01','2024-05-06','2024-05-15','2024-06-06','2024-08-15','2024-09-16','2024-09-17','2024-09-18','2024-10-01','2024-10-03','2024-10-09','2024-12-25','2024-12-31','2025-01-01','2025-01-28','2025-01-29','2025-01-30','2025-03-03','2025-05-01','2025-05-05','2025-05-06','2025-06-06','2025-08-15','2025-10-03','2025-10-06','2025-10-07','2025-10-08','2025-10-09','2025-12-25','2025-12-31','2026-01-01','2026-02-16','2026-02-17','2026-02-18','2026-03-02','2026-05-01','2026-05-05','2026-05-25','2026-06-06','2026-08-17','2026-09-24','2026-09-25','2026-10-05','2026-10-09','2026-12-25','2026-12-31']);
+function prevTradingDay(date){if(!date)return '';let d=new Date(date+'T12:00:00');do{d.setDate(d.getDate()-1);const x=d.toISOString().slice(0,10),w=d.getDay();if(w!==0&&w!==6&&!KRX_HOLIDAYS.has(x))return x}while(true)}
 function holdingQtyAtDate(a,p,date){let h=(BASE_HOLDINGS[a]||[]).find(x=>x['상품명']===p),q=Number(h?.['수량'])||0;for(const t of TRADES.filter(t=>t.account===a&&t.product===p&&(!date||t.date<=date)).sort((x,y)=>(x.date||'').localeCompare(y.date||'')||x.id-y.id)){const n=Number(t.qty)||0;q=t.type==='매수'?q+n:Math.max(0,q-n)}return q}
 async function refreshAllDividends(){
  let added=0,checked=0,failed=0;
- for(const a of names){for(const h of calculatedHoldings(a).filter(h=>(Number(h['수량'])||0)>0)){checked++;try{const r=await fetch('/api/dividend?name='+encodeURIComponent(h['상품명']),{cache:'no-store'});if(!r.ok){failed++;continue}const d=await r.json();if(!(Number(d.unit)>0)||!d.payDate)continue;const exists=allDividendRows(a).some(x=>String(x['상품명']||'')===String(h['상품명'])&&String(x['지급일']||'')===String(d.payDate));if(exists)continue;const qty=holdingQtyAtDate(a,h['상품명'],d.payDate);if(!(qty>0))continue;USER_DIVS.push({id:Date.now()+added,account:a,baseDate:'',payDate:d.payDate,product:h['상품명'],unit:Number(d.unit),qty,source:'auto'});added++}catch(e){failed++}}}
+ for(const a of names){for(const h of calculatedHoldings(a).filter(h=>(Number(h['수량'])||0)>0)){checked++;try{const r=await fetch('/api/dividend?name='+encodeURIComponent(h['상품명']),{cache:'no-store'});if(!r.ok){failed++;continue}const d=await r.json();if(!(Number(d.unit)>0)||!d.payDate)continue;const exists=allDividendRows(a).some(x=>String(x['상품명']||'')===String(h['상품명'])&&String(x['지급일']||'')===String(d.payDate));if(exists)continue;const baseDate=prevTradingDay(d.payDate);const qty=holdingQtyAtDate(a,h['상품명'],baseDate);if(!(qty>0))continue;USER_DIVS.push({id:Date.now()+added,account:a,baseDate, payDate:d.payDate,product:h['상품명'],unit:Number(d.unit),qty,source:'auto'});added++}catch(e){failed++}}}
  if(added){await saveServerState();render()}
  const st=document.getElementById('syncStatus');st.textContent=added?'신규 배당 '+added+'건 자동 추가':'신규 배당 없음';st.classList.remove('auth-hidden');setTimeout(()=>st.classList.add('auth-hidden'),3000);
  return {added,checked,failed}
