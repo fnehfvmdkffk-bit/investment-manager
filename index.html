@@ -6,7 +6,9 @@
 .primary{border:0;background:var(--accent);color:white;padding:11px 16px;border-radius:9px;font-weight:700;cursor:pointer}.danger{border:1px solid #f3b7b7;background:#fff;color:#b42318;padding:5px 9px;border-radius:7px;cursor:pointer}
 .note{font-size:12px;color:var(--muted);margin-top:8px}.trade-history{margin-top:14px}
 @media(max-width:950px){.trade-form{grid-template-columns:1fr 1fr}.trade-form .product{grid-column:1/-1}}@media(max-width:800px){.cards,.grid2{grid-template-columns:1fr}.wrap{padding:14px}}
-</style></head><body><header><h1>2026 투자관리</h1></header><main class="wrap">
+
+.auth-overlay{position:fixed;inset:0;background:#f5f7fb;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}.auth-box{width:min(420px,100%);background:#fff;border:1px solid var(--line);border-radius:16px;padding:26px;box-shadow:0 12px 35px #00000012}.auth-box h2{margin:0 0 8px}.auth-box p{color:var(--muted);font-size:13px;margin:0 0 18px}.auth-box input{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;margin-bottom:10px}.auth-error{color:#b42318;font-size:13px;min-height:20px}.auth-hidden{display:none!important}.sync-status{position:fixed;right:14px;bottom:14px;background:#101828;color:#fff;padding:8px 11px;border-radius:9px;font-size:12px;z-index:100;opacity:.9}
+</style></head><body><div id="authOverlay" class="auth-overlay"><div class="auth-box"><h2>2026 투자관리 로그인</h2><p>등록한 비밀번호로 로그인하면 PC와 휴대폰에서 같은 데이터를 사용합니다.</p><input id="loginPassword" type="password" placeholder="비밀번호" autocomplete="current-password"><button class="primary" style="width:100%" onclick="loginApp()">로그인</button><div id="loginError" class="auth-error"></div></div></div><div id="syncStatus" class="sync-status auth-hidden">동기화됨</div><header><h1>2026 투자관리</h1></header><main class="wrap">
 <div class="cards"><div class="card"><div class="label">국내 연금계좌 매수금액</div><div class="value" id="summaryAmount">-</div></div><div class="card"><div class="label">국내 연금계좌 보유수량</div><div class="value" id="summaryQty">-</div></div><div class="card"><div class="label">2026 국내 누적 총배당</div><div class="value" id="summaryDividend">-</div></div></div>
 <div class="tabs" id="tabs"></div>
 <section class="card section trade-card"><h2>매수 · 매도 입력</h2>
@@ -53,8 +55,8 @@ function productsFor(a){const s=new Set(),o=[];[...(BASE_HOLDINGS[a]||[]),...(DA
 function updateProductSelect(){const e=document.getElementById('tradeProduct'),p=e.value,ps=productsFor(current);e.innerHTML=ps.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');if(ps.includes(p))e.value=p}
 function calculatedHoldings(a){const m=new Map();(BASE_HOLDINGS[a]||[]).forEach(h=>m.set(h['상품명'],{...h}));TRADES.filter(t=>t.account===a).sort((x,y)=>(x.date||'').localeCompare(y.date||'')||x.id-y.id).forEach(t=>{let h=m.get(t.product);if(!h){h={'상품명':t.product,'배당기준':'','수량':0,'평단가':0,'매수금액':0};m.set(t.product,h)}let q=Number(h['수량'])||0,av=Number(h['평단가'])||0,am=Number(h['매수금액'])||q*av,tq=Number(t.qty)||0,pr=Number(t.price)||0;if(t.type==='매수'){let na=am+tq*pr,nq=q+tq;h['수량']=nq;h['매수금액']=na;h['평단가']=nq?na/nq:0}else{let sell=Math.min(tq,q),nq=q-sell;h['수량']=nq;h['평단가']=nq?av:0;h['매수금액']=nq?av*nq:0}});return [...m.values()]}
 function renderHistory(){const rs=TRADES.filter(t=>t.account===current).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||b.id-a.id);if(!rs.length){document.getElementById('tradeHistory').innerHTML='<div class="empty">입력한 거래가 없습니다.</div>';return}document.getElementById('tradeHistory').innerHTML='<div class="tablebox"><table><thead><tr><th>날짜</th><th>구분</th><th>종목</th><th>수량</th><th>단가</th><th></th></tr></thead><tbody>'+rs.map(t=>`<tr><td>${esc(t.date)}</td><td>${esc(t.type)}</td><td>${esc(t.product)}</td><td class="num">${esc(fmt(t.qty))}</td><td class="num">${esc(fmt(t.price))}</td><td><button class="danger" onclick="deleteTrade(${t.id})">취소</button></td></tr>`).join('')+'</tbody></table></div>'}
-function addTrade(){const date=document.getElementById('tradeDate').value,type=document.getElementById('tradeType').value,product=document.getElementById('tradeProduct').value,qty=Number(document.getElementById('tradeQty').value),price=Number(document.getElementById('tradePrice').value);if(!date||!product||!(qty>0)||!(price>=0)){alert('날짜, 종목, 수량, 단가를 확인해 주세요.');return}if(type==='매도'){const h=calculatedHoldings(current).find(x=>x['상품명']===product),owned=Number(h?.['수량'])||0;if(qty>owned){alert(`보유수량 ${fmt(owned)}주보다 많이 매도할 수 없습니다.`);return}}TRADES.push({id:Date.now(),account:current,date,type,product,qty,price});localStorage.setItem(STORE_KEY,JSON.stringify(TRADES));document.getElementById('tradeQty').value='';document.getElementById('tradePrice').value='';render()}
-function deleteTrade(id){TRADES=TRADES.filter(t=>t.id!==id);localStorage.setItem(STORE_KEY,JSON.stringify(TRADES));render()}
+function addTrade(){const date=document.getElementById('tradeDate').value,type=document.getElementById('tradeType').value,product=document.getElementById('tradeProduct').value,qty=Number(document.getElementById('tradeQty').value),price=Number(document.getElementById('tradePrice').value);if(!date||!product||!(qty>0)||!(price>=0)){alert('날짜, 종목, 수량, 단가를 확인해 주세요.');return}if(type==='매도'){const h=calculatedHoldings(current).find(x=>x['상품명']===product),owned=Number(h?.['수량'])||0;if(qty>owned){alert(`보유수량 ${fmt(owned)}주보다 많이 매도할 수 없습니다.`);return}}TRADES.push({id:Date.now(),account:current,date,type,product,qty,price});saveServerState();document.getElementById('tradeQty').value='';document.getElementById('tradePrice').value='';render()}
+function deleteTrade(id){TRADES=TRADES.filter(t=>t.id!==id);saveServerState();render()}
 
 
 
@@ -138,13 +140,13 @@ function addDividend(){
   const qty=Number(document.getElementById('divQty').value);
   if(!baseDate||!payDate||!product||!(unit>=0)||!(qty>0)){alert('기준일, 지급일, 종목, 배당단가, 배당수량을 확인해 주세요.');return}
   USER_DIVS.push({id:Date.now(),account:current,baseDate,payDate,product,unit,qty});
-  localStorage.setItem(DIV_STORE_KEY,JSON.stringify(USER_DIVS));
+  saveServerState();
   document.getElementById('divUnit').value='';
   render();
 }
 function deleteDividend(id){
   USER_DIVS=USER_DIVS.filter(d=>d.id!==id);
-  localStorage.setItem(DIV_STORE_KEY,JSON.stringify(USER_DIVS));
+  saveServerState();
   render();
 }
 function renderDividendInputHistory(){
@@ -183,5 +185,32 @@ document.getElementById('divBaseDate').value=new Date().toISOString().slice(0,10
 document.getElementById('divPayDate').value=new Date().toISOString().slice(0,10);
 document.getElementById('divBaseDate').addEventListener('change',updateDividendQty);
 document.getElementById('divProduct').addEventListener('change',()=>{updateDividendQty();updateOfficialHint();});
-render();
+
+async function saveServerState(){
+  const st=document.getElementById('syncStatus');
+  try{
+    st.textContent='저장 중...';st.classList.remove('auth-hidden');
+    const r=await fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({trades:TRADES,dividends:USER_DIVS})});
+    if(r.status===401){showLogin();return}
+    if(!r.ok)throw new Error('save failed');
+    localStorage.setItem(STORE_KEY,JSON.stringify(TRADES));localStorage.setItem(DIV_STORE_KEY,JSON.stringify(USER_DIVS));
+    st.textContent='동기화됨';setTimeout(()=>st.classList.add('auth-hidden'),1500);
+  }catch(e){st.textContent='동기화 실패';st.classList.remove('auth-hidden')}
+}
+function showLogin(){document.getElementById('authOverlay').classList.remove('auth-hidden');setTimeout(()=>document.getElementById('loginPassword').focus(),50)}
+function hideLogin(){document.getElementById('authOverlay').classList.add('auth-hidden')}
+async function loginApp(){
+  const pw=document.getElementById('loginPassword').value,err=document.getElementById('loginError');err.textContent='';
+  try{const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});if(!r.ok){err.textContent='비밀번호가 맞지 않습니다.';return}document.getElementById('loginPassword').value='';await loadServerState()}catch(e){err.textContent='로그인 서버에 연결할 수 없습니다.'}
+}
+document.getElementById('loginPassword').addEventListener('keydown',e=>{if(e.key==='Enter')loginApp()});
+async function loadServerState(){
+  try{const r=await fetch('/api/state',{cache:'no-store'});if(r.status===401){showLogin();return}if(!r.ok)throw new Error('load failed');const data=await r.json();
+    const serverTrades=Array.isArray(data.trades)?data.trades:[],serverDivs=Array.isArray(data.dividends)?data.dividends:[];
+    const localTrades=TRADES,localDivs=USER_DIVS;
+    if(serverTrades.length===0&&serverDivs.length===0&&(localTrades.length||localDivs.length)){TRADES=localTrades;USER_DIVS=localDivs;await saveServerState()}else{TRADES=serverTrades;USER_DIVS=serverDivs;localStorage.setItem(STORE_KEY,JSON.stringify(TRADES));localStorage.setItem(DIV_STORE_KEY,JSON.stringify(USER_DIVS))}
+    hideLogin();render();
+  }catch(e){document.getElementById('loginError').textContent='데이터를 불러오지 못했습니다.';showLogin()}
+}
+loadServerState();
 </script></body></html>
