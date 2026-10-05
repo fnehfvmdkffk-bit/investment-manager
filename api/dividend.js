@@ -8,8 +8,9 @@ export default async function handler(req,res){
   const html=await r.text(),plain=clean(html),norm=x=>String(x).replace(/\s+/g,'').toLowerCase();
   const pos=plain.indexOf(name); if(pos<0)return res.status(404).json({error:'not_found'});
   const raw=plain.slice(Math.max(0,pos-100),pos+name.length+300);
-  const dm=raw.match(/(20\d{2}-\d{2}-\d{2})/), wm=raw.match(/([\d,]+(?:\.\d+)?)\s*원/);
-  if(!dm||!wm)return res.status(404).json({error:'no_dividend'});
-  return res.status(200).json({name,payDate:dm[1],unit:Number(wm[1].replace(/,/g,'')),source:'ETFcal',tax:'pre-tax'});
+  const dates=[...raw.matchAll(/20\d{2}-\d{2}-\d{2}/g)].map(x=>x[0]).filter((x,i,a)=>a.indexOf(x)===i), wm=raw.match(/([\d,]+(?:\.\d+)?)\s*원/);
+  if(!dates.length||!wm)return res.status(404).json({error:'no_dividend'});
+  const baseDate=dates[0],payDate=dates.length>1?dates[1]:'';
+  return res.status(200).json({name,baseDate,payDate,unit:Number(wm[1].replace(/,/g,'')),source:'ETFcal',tax:'pre-tax'});
  }catch(e){return res.status(502).json({error:'source_unavailable'})}
 }
