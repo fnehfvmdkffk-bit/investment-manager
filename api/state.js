@@ -7,13 +7,13 @@ export default async function handler(req,res){
  res.setHeader('Cache-Control','no-store');
  if(!ok(req))return res.status(401).json({error:'unauthorized'});
  if(req.method==='GET'){
-  try{const r=await get('investment-data.json',{access:'private'});if(!r||r.statusCode!==200)return res.status(200).json({trades:[],dividends:[]});const t=await new Response(r.stream).text();return res.status(200).json(JSON.parse(t))}
-  catch(e){return res.status(200).json({trades:[],dividends:[]})}
+  try{const r=await get('investment-data.json',{access:'private'});if(!r||r.statusCode!==200)return res.status(200).json({trades:[],dividends:[],prices:{}});const t=await new Response(r.stream).text();return res.status(200).json(JSON.parse(t))}
+  catch(e){return res.status(200).json({trades:[],dividends:[],prices:{}})}
  }
  if(req.method==='PUT'){
-  const trades=Array.isArray(req.body?.trades)?req.body.trades:[],dividends=Array.isArray(req.body?.dividends)?req.body.dividends:[];
+  const trades=Array.isArray(req.body?.trades)?req.body.trades:[],dividends=Array.isArray(req.body?.dividends)?req.body.dividends:[],prices=req.body?.prices&&typeof req.body.prices==='object'?req.body.prices:{};
   if(trades.length>10000||dividends.length>10000)return res.status(413).json({error:'too_large'});
-  await put('investment-data.json',JSON.stringify({trades,dividends,updatedAt:new Date().toISOString()}),{access:'private',addRandomSuffix:false,allowOverwrite:true,contentType:'application/json'});
+  await put('investment-data.json',JSON.stringify({trades,dividends,prices,updatedAt:new Date().toISOString()}),{access:'private',addRandomSuffix:false,allowOverwrite:true,contentType:'application/json'});
   return res.status(200).json({ok:true});
  }
  return res.status(405).end();
