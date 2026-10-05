@@ -195,6 +195,14 @@ async function refreshAllAccountPrices(){
  localStorage.setItem(PRICE_STORE_KEY,JSON.stringify(PRICES));await saveServerState();render();
  note.textContent='전체 자동조회 완료 '+ok+'종목'+(fail?' · 실패 '+fail+'종목: '+failed.join(', '):'')+(last?' · '+String(last).replace('T',' ').slice(0,16):'');
 }
+function holdingQtyAtDate(a,p,date){let h=(BASE_HOLDINGS[a]||[]).find(x=>x['상품명']===p),q=Number(h?.['수량'])||0;for(const t of TRADES.filter(t=>t.account===a&&t.product===p&&(!date||t.date<=date)).sort((x,y)=>(x.date||'').localeCompare(y.date||'')||x.id-y.id)){const n=Number(t.qty)||0;q=t.type==='매수'?q+n:Math.max(0,q-n)}return q}
+async function refreshAllDividends(){
+ let added=0,checked=0,failed=0;
+ for(const a of names){for(const h of calculatedHoldings(a).filter(h=>(Number(h['수량'])||0)>0)){checked++;try{const r=await fetch('/api/dividend?name='+encodeURIComponent(h['상품명']),{cache:'no-store'});if(!r.ok){failed++;continue}const d=await r.json();if(!(Number(d.unit)>0)||!d.payDate)continue;const exists=allDividendRows(a).some(x=>String(x['상품명']||'')===String(h['상품명'])&&String(x['지급일']||'')===String(d.payDate));if(exists)continue;const qty=holdingQtyAtDate(a,h['상품명'],d.payDate);if(!(qty>0))continue;USER_DIVS.push({id:Date.now()+added,account:a,baseDate:'',payDate:d.payDate,product:h['상품명'],unit:Number(d.unit),qty,source:'auto'});added++}catch(e){failed++}}}
+ if(added){await saveServerState();render()}
+ const st=document.getElementById('syncStatus');st.textContent=added?'신규 배당 '+added+'건 자동 추가':'신규 배당 없음';st.classList.remove('auth-hidden');setTimeout(()=>st.classList.add('auth-hidden'),3000);
+ return {added,checked,failed}
+}
 function render(){updateSummary();tabs();updateProductSelect();updateDividendProductSelect();document.getElementById('holdings').innerHTML=holdingsTable();renderHistory();renderDividendInputHistory();renderDivs()}
 function renderDivs(){const q=document.getElementById('search').value.trim().toLowerCase();let rows=allDividendRows(current).filter(r=>!q||String(r['상품명']||'').toLowerCase().includes(q));let preferred=['상품명','기준일','지급일','배당단가','배당수량','총 배당금액','실 배당금액','환율','세전배당금액($)','세후배당금액($)','세후배당금액','평단가'];let cols=preferred.filter(c=>rows.some(r=>r[c]!=null));document.getElementById('dividends').innerHTML=table(rows,cols)}
 function selectTab(n){current=n;render()}document.getElementById('search').addEventListener('input',renderDivs);document.getElementById('tradeDate').value=new Date().toISOString().slice(0,10);
@@ -226,7 +234,7 @@ async function loadServerState(){
     const serverTrades=Array.isArray(data.trades)?data.trades:[],serverDivs=Array.isArray(data.dividends)?data.dividends:[],serverPrices=data.prices&&typeof data.prices==='object'?data.prices:{},serverCapital=data.capital&&typeof data.capital==='object'?data.capital:null;
     const localTrades=TRADES,localDivs=USER_DIVS;
     if(serverTrades.length===0&&serverDivs.length===0&&Object.keys(serverPrices).length===0&&(localTrades.length||localDivs.length||Object.keys(PRICES).length)){TRADES=localTrades;USER_DIVS=localDivs;await saveServerState()}else{TRADES=serverTrades;USER_DIVS=serverDivs;PRICES=serverPrices;if(serverCapital)CAPITAL={...DEFAULT_CAPITAL,...serverCapital};localStorage.setItem(CAPITAL_STORE_KEY,JSON.stringify(CAPITAL));localStorage.setItem(STORE_KEY,JSON.stringify(TRADES));localStorage.setItem(DIV_STORE_KEY,JSON.stringify(USER_DIVS));localStorage.setItem(PRICE_STORE_KEY,JSON.stringify(PRICES))}
-    hideLogin();render();refreshAllAccountPrices();
+    hideLogin();render();refreshAllAccountPrices().then(()=>refreshAllDividends());
   }catch(e){document.getElementById('loginError').textContent='데이터를 불러오지 못했습니다.';showLogin()}
 }
 loadServerState();
