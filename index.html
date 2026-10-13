@@ -11,7 +11,7 @@
 </style></head><body><div id="authOverlay" class="auth-overlay"><div class="auth-box"><h2>투자관리 로그인</h2><p>등록한 비밀번호로 로그인하면 PC와 휴대폰에서 같은 데이터를 사용합니다.</p><input id="loginPassword" type="password" placeholder="비밀번호" autocomplete="current-password"><button class="primary" style="width:100%" onclick="loginApp()">로그인</button><div id="loginError" class="auth-error"></div></div></div><div id="syncStatus" class="sync-status auth-hidden">동기화됨</div><header><h1>투자관리</h1><nav class="topnav"><a class="active" href="/">투자관리</a><a href="/analysis.html">분석</a></nav></header><main class="wrap">
 <div class="cards summary5"><div class="card"><div class="label">총 투자금</div><div class="value" id="summaryCapital">-</div></div><div class="card"><div class="label">총 매수금액</div><div class="value" id="summaryAmount">-</div></div><div class="card"><div class="label">총 평가금액</div><div class="value" id="summaryValue">-</div></div><div class="card"><div class="label">평가손익</div><div class="value" id="summaryEvalProfit">-</div></div><div class="card"><div class="label">배당금</div><div class="value" id="summaryDividend">-</div></div><div class="card"><div class="label">투자금 대비 수익금</div><div class="value" id="summaryProfit">-</div></div><div class="card"><div class="label">수익률</div><div class="value" id="summaryEvalRate">-</div></div><div class="card"><div class="label">배당포함 수익률</div><div class="value" id="summaryDividendRate">-</div></div><div class="card"><div class="label">투자금 대비 수익률</div><div class="value" id="summaryRate">-</div></div></div><div class="card account-summary"><h2>계좌별 수익률 비교</h2><div id="accountComparison"></div></div>
 <div class="tabs" id="tabs"></div>
-<section class="card section"><h2>현재 보유종목</h2><div style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><button class="primary" onclick="refreshAllPrices()">현재가격 자동조회</button><span id="priceUpdateNote" class="note"></span></div><div id="holdings"></div></section>
+<section class="card section"><h2>현재 보유종목</h2><div style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><button class="primary" onclick="refreshAllPrices()">현재가격 자동조회</button><button class="primary" id="dividendRefreshButton" onclick="manualDividendRefresh()">배당 자동조회</button><span id="priceUpdateNote" class="note"></span></div><div id="holdings"></div></section>
 <section class="card section trade-card"><details><summary style="cursor:pointer;font-weight:700;font-size:18px;padding:2px 0">매수 · 매도 입력 펼치기</summary><div style="margin-top:14px">
 <div class="trade-form">
 <div class="field"><label>날짜</label><input type="date" id="tradeDate"></div>
@@ -201,6 +201,16 @@ const KRX_HOLIDAYS=new Set(['2024-01-01','2024-02-09','2024-02-12','2024-03-01',
 function prevTradingDay(date){if(!date)return '';let d=new Date(date+'T12:00:00');do{d.setDate(d.getDate()-1);const x=d.toISOString().slice(0,10),w=d.getDay();if(w!==0&&w!==6&&!KRX_HOLIDAYS.has(x))return x}while(true)}
 function holdingStateAtDate(a,p,date){let h=(BASE_HOLDINGS[a]||[]).find(x=>x['상품명']===p),q=Number(h?.['수량'])||0,av=Number(h?.['평단가'])||0,am=Number(h?.['매수금액'])||q*av;for(const t of TRADES.filter(t=>t.account===a&&t.product===p&&(!date||t.date<=date)).sort((x,y)=>(x.date||'').localeCompare(y.date||'')||x.id-y.id)){const n=Number(t.qty)||0,pr=Number(t.price)||0;if(t.type==='매수'){am+=n*pr;q+=n;av=q?am/q:0}else{const sell=Math.min(n,q);q-=sell;am=q?av*q:0;if(!q)av=0}}return {qty:q,avgPrice:av}}
 function holdingQtyAtDate(a,p,date){return holdingStateAtDate(a,p,date).qty}
+async function manualDividendRefresh(){
+ const button=document.getElementById('dividendRefreshButton');
+ if(button?.disabled)return;
+ if(button){button.disabled=true;button.textContent='배당 조회 중...'}
+ const status=document.getElementById('syncStatus');
+ if(status){status.textContent='전체 계좌 배당 조회 중...';status.classList.remove('auth-hidden')}
+ try{await refreshAllDividends(false)}
+ catch(e){if(status){status.textContent='배당 자동조회 실패';status.classList.remove('auth-hidden')}}
+ finally{if(button){button.disabled=false;button.textContent='배당 자동조회'}}
+}
 async function refreshAllDividends(rebuild=false){
  let added=0,updated=0,checked=0,failed=0;
  // Preserve previously recorded distributions even when a source temporarily omits them.
