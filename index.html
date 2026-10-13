@@ -202,23 +202,51 @@ function prevTradingDay(date){if(!date)return '';let d=new Date(date+'T12:00:00'
 function holdingStateAtDate(a,p,date){let h=(BASE_HOLDINGS[a]||[]).find(x=>x['상품명']===p),q=Number(h?.['수량'])||0,av=Number(h?.['평단가'])||0,am=Number(h?.['매수금액'])||q*av;for(const t of TRADES.filter(t=>t.account===a&&t.product===p&&(!date||t.date<=date)).sort((x,y)=>(x.date||'').localeCompare(y.date||'')||x.id-y.id)){const n=Number(t.qty)||0,pr=Number(t.price)||0;if(t.type==='매수'){am+=n*pr;q+=n;av=q?am/q:0}else{const sell=Math.min(n,q);q-=sell;am=q?av*q:0;if(!q)av=0}}return {qty:q,avgPrice:av}}
 function holdingQtyAtDate(a,p,date){return holdingStateAtDate(a,p,date).qty}
 async function refreshAllDividends(rebuild=false){
- let added=0,checked=0,failed=0;
- if(rebuild)USER_DIVS=USER_DIVS.filter(d=>!(d.source==='auto'&&String(d.payDate||'')>='2026-09-01'));
+ let added=0,updated=0,checked=0,failed=0;
+ // Preserve previously recorded distributions even when a source temporarily omits them.
  const seen=new Set();
- for(const a of names){for(const h of calculatedHoldings(a).filter(h=>(Number(h['수량'])||0)>0)){checked++;try{
-  const r=await fetch('/api/dividend?name='+encodeURIComponent(h['상품명']),{cache:'no-store'});if(!r.ok){failed++;continue}const d=await r.json();
-  for(const x of (Array.isArray(d.records)?d.records:[])){if(!x.recordDate||!x.payDate||!(Number(x.unit)>0))continue;
-   const baseDate=prevTradingDay(prevTradingDay(x.recordDate)),key=[a,h['상품명'],x.recordDate,x.payDate,Number(x.unit)].join('|');
-   const existsBase=(DATA[a].rows||[]).some(z=>String(z['상품명']||'')===String(h['상품명'])&&String(z['지급일']||'')===String(x.payDate)&&Number(z['배당단가']||0)===Number(x.unit));
-   if(seen.has(key)||existsBase)continue;seen.add(key);
-   const hs=holdingStateAtDate(a,h['상품명'],baseDate);if(!(hs.qty>0))continue;
-   USER_DIVS.push({id:Date.now()+added,account:a,baseDate,payDate:x.payDate,recordDate:x.recordDate,product:h['상품명'],unit:Number(x.unit),qty:hs.qty,avgPrice:hs.avgPrice,source:'auto'});added++;
+ for(const a of names){
+  for(const h of calculatedHoldings(a).filter(h=>(Number(h['수량'])||0)>0)){
+   checked++;
+   try{
+    const r=await fetch('/api/dividend?name='+encodeURIComponent(h['상품명']),{cache:'no-store'});
+    if(!r.ok){failed++;continue}
+    const d=await r.json();
+    for(const x of (Array.isArray(d.records)?d.records:[])){
+     const unit=Number(x.unit),recordDate=String(x.recordDate||''),payDate=String(x.payDate||'');
+     if(!(unit>0)||(!recordDate&&!payDate))continue;
+     const identity=[a,h['상품명'],recordDate||payDate,unit].join('|');
+     if(seen.has(identity))continue;seen.add(identity);
+     const existsBase=(DATA[a].rows||[]).some(z=>String(z['상품명']||'')===String(h['상품명'])&&Number(z['배당단가']||0)===unit&&(payDate&&String(z['지급일']||'')===payDate||recordDate&&String(z['기준일']||'')===recordDate));
+     if(existsBase)continue;
+     const old=USER_DIVS.find(z=>z.account===a&&z.product===h['상품명']&&Number(z.unit)===unit&&((recordDate&&z.recordDate===recordDate)||(payDate&&z.payDate===payDate)));
+     if(old){
+      if(old.source==='auto'&&payDate&&old.payDate!==payDate){old.payDate=payDate;updated++}
+      continue;
+     }
+     const baseDate=recordDate?prevTradingDay(prevTradingDay(recordDate)):payDate;
+     const hs=holdingStateAtDate(a,h['상품명'],baseDate);
+     if(!(hs.qty>0))continue;
+     USER_DIVS.push({id:Date.now()+added,account:a,baseDate,payDate,recordDate,product:h['상품명'],unit,qty:hs.qty,avgPrice:hs.avgPrice,source:'auto',status:payDate?'scheduled':'announced'});added++;
+    }
+   }catch(e){failed++}
   }
- }catch(e){failed++}}}
- const uniq=new Map();for(const d of USER_DIVS){const k=[d.account,d.product,d.payDate,d.unit].join('|');if(!uniq.has(k)||uniq.get(k).source==='auto')uniq.set(k,d)}USER_DIVS=[...uniq.values()];
- localStorage.setItem(DIV_STORE_KEY,JSON.stringify(USER_DIVS));await saveServerState();render();
- const st=document.getElementById('syncStatus');st.textContent=rebuild?'9월 이후 배당 재검증 완료 · '+added+'건':(added?'신규 배당 '+added+'건 자동 추가':'신규 배당 없음');st.classList.remove('auth-hidden');setTimeout(()=>st.classList.add('auth-hidden'),3000);
- return {added,checked,failed}
+ }
+ // Dedupe without discarding manually entered entries.
+ const uniq=new Map();
+ for(const d of USER_DIVS){
+  const k=[d.account,d.product,d.recordDate||d.payDate||d.baseDate,d.unit].join('|');
+  const prior=uniq.get(k);
+  if(!prior||prior.source==='auto'&&d.source!=='auto')uniq.set(k,d);
+  else if(prior.source==='auto'&&d.source==='auto'&&!prior.payDate&&d.payDate)uniq.set(k,d);
+ }
+ USER_DIVS=[...uniq.values()];
+ localStorage.setItem(DIV_STORE_KEY,JSON.stringify(USER_DIVS));
+ await saveServerState();render();
+ const st=document.getElementById('syncStatus');
+ st.textContent=(added?'신규 배당 '+added+'건 자동 추가':'신규 배당 없음')+(updated?' · 지급일 갱신 '+updated+'건':'')+(failed?' · 조회 실패 '+failed+'종목':'');
+ st.classList.remove('auth-hidden');setTimeout(()=>st.classList.add('auth-hidden'),5000);
+ return {added,updated,checked,failed};
 }
 function render(){updateSummary();tabs();updateProductSelect();updateDividendProductSelect();document.getElementById('holdings').innerHTML=holdingsTable();renderHistory();renderDividendInputHistory();renderDivs()}
 function dividendTable(rows,cols){if(!rows.length)return '<div class="empty">표시할 데이터가 없습니다.</div>';const wonCols=new Set(['배당단가','총 배당금액','실 배당금액','세후배당금액','평단가']);const f=(v,c)=>typeof v==='number'&&wonCols.has(c)?new Intl.NumberFormat('ko-KR',{maximumFractionDigits:0}).format(Math.round(v)):fmt(v);return '<div class="tablebox"><table><thead><tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+cols.map(c=>`<td class="${typeof r[c]==='number'?'num':''}">${esc(f(r[c],c))}</td>`).join('')+'</tr>').join('')+'</tbody></table></div>'}
