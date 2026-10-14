@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "투자관리",
+  "short_name": "투자관리",
+  "description": "계좌별 투자 및 배당 관리",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#2563eb",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
