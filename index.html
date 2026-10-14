@@ -11,7 +11,7 @@
 </style><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/app-icon.svg" type="image/svg+xml"><meta name="theme-color" content="#2563eb"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="투자관리"></head><body><div id="authOverlay" class="auth-overlay"><div class="auth-box"><h2>투자관리 로그인</h2><p>등록한 비밀번호로 로그인하면 PC와 휴대폰에서 같은 데이터를 사용합니다.</p><input id="loginPassword" type="password" placeholder="비밀번호" autocomplete="current-password"><button class="primary" style="width:100%" onclick="loginApp()">로그인</button><div id="loginError" class="auth-error"></div></div></div><div id="syncStatus" class="sync-status auth-hidden">동기화됨</div><header><h1>투자관리</h1><nav class="topnav"><a class="active" href="/">투자관리</a><a href="/analysis.html">분석</a></nav></header><main class="wrap">
 <div class="cards summary5"><div class="card"><div class="label">총 투자금</div><div class="value" id="summaryCapital">-</div></div><div class="card"><div class="label">총 매수금액</div><div class="value" id="summaryAmount">-</div></div><div class="card"><div class="label">총 평가금액</div><div class="value" id="summaryValue">-</div></div><div class="card"><div class="label">평가손익</div><div class="value" id="summaryEvalProfit">-</div></div><div class="card"><div class="label">배당금</div><div class="value" id="summaryDividend">-</div></div><div class="card"><div class="label">투자금 대비 수익금</div><div class="value" id="summaryProfit">-</div></div><div class="card"><div class="label">수익률</div><div class="value" id="summaryEvalRate">-</div></div><div class="card"><div class="label">배당포함 수익률</div><div class="value" id="summaryDividendRate">-</div></div><div class="card"><div class="label">투자금 대비 수익률</div><div class="value" id="summaryRate">-</div></div></div><div class="card account-summary"><h2>계좌별 수익률 비교</h2><div id="accountComparison"></div></div>
 <div class="tabs" id="tabs"></div>
-<section class="card section"><h2>현재 보유종목</h2><div class="refresh-actions"><button class="primary" onclick="refreshAllPrices()">현재가격 자동조회</button><button class="primary" id="dividendRefreshButton" onclick="manualDividendRefresh()">배당 자동조회</button><span id="priceUpdateNote" class="note"></span></div><div id="holdings"></div></section>
+<section class="card section"><h2>현재 보유종목</h2><div class="refresh-actions"><button class="primary" onclick="refreshAllPrices()">현재가격 자동조회</button><button class="primary" id="dividendRefreshButton" onclick="manualDividendRefresh()">배당 자동조회</button><span id="priceUpdateNote" class="note"></span></div><div id="dividendFailureDetail" class="note" hidden style="white-space:pre-line;color:#b42318;margin:8px 0"></div><div id="holdings"></div></section>
 <section class="card section trade-card"><details><summary style="cursor:pointer;font-weight:700;font-size:18px;padding:2px 0">매수 · 매도 입력 펼치기</summary><div style="margin-top:14px">
 <div class="trade-form">
 <div class="field"><label>날짜</label><input type="date" id="tradeDate"></div>
@@ -212,7 +212,7 @@ async function manualDividendRefresh(){
  finally{if(button){button.disabled=false;button.textContent='배당 자동조회'}}
 }
 async function refreshAllDividends(rebuild=false){
- let added=0,updated=0,checked=0,failed=0;
+ let added=0,updated=0,checked=0,failed=0;const failedItems=[];
  // Preserve previously recorded distributions even when a source temporarily omits them.
  const seen=new Set();
  for(const a of names){
@@ -220,7 +220,7 @@ async function refreshAllDividends(rebuild=false){
    checked++;
    try{
     const r=await fetch('/api/dividend?name='+encodeURIComponent(h['상품명']),{cache:'no-store'});
-    if(!r.ok){failed++;continue}
+    if(!r.ok){failed++;failedItems.push(a+' · '+h['상품명']+' (HTTP '+r.status+')');continue}
     const d=await r.json();
     for(const x of (Array.isArray(d.records)?d.records:[])){
      const unit=Number(x.unit),recordDate=String(x.recordDate||''),payDate=String(x.payDate||'');
@@ -239,7 +239,7 @@ async function refreshAllDividends(rebuild=false){
      if(!(hs.qty>0))continue;
      USER_DIVS.push({id:Date.now()+added,account:a,baseDate,payDate,recordDate,product:h['상품명'],unit,qty:hs.qty,avgPrice:hs.avgPrice,source:'auto',status:payDate?'scheduled':'announced'});added++;
     }
-   }catch(e){failed++}
+   }catch(e){failed++;failedItems.push(a+' · '+h['상품명']+' (연결 오류)')}
   }
  }
  // Dedupe without discarding manually entered entries.
@@ -256,7 +256,8 @@ async function refreshAllDividends(rebuild=false){
  const st=document.getElementById('syncStatus');
  st.textContent=(added?'신규 배당 '+added+'건 자동 추가':'신규 배당 없음')+(updated?' · 지급일 갱신 '+updated+'건':'')+(failed?' · 조회 실패 '+failed+'종목':'');
  st.classList.remove('auth-hidden');setTimeout(()=>st.classList.add('auth-hidden'),5000);
- return {added,updated,checked,failed};
+ const detail=document.getElementById('dividendFailureDetail');if(detail){detail.hidden=!failedItems.length;detail.textContent=failedItems.length?'배당 조회 실패 내역 ('+failedItems.length+'건)\n'+failedItems.map((x,i)=>(i+1)+'. '+x).join('\n'):'';}
+ return {added,updated,checked,failed,failedItems};
 }
 function render(){updateSummary();tabs();updateProductSelect();updateDividendProductSelect();document.getElementById('holdings').innerHTML=holdingsTable();renderHistory();renderDividendInputHistory();renderDivs()}
 function dividendTable(rows,cols){if(!rows.length)return '<div class="empty">표시할 데이터가 없습니다.</div>';const wonCols=new Set(['배당단가','총 배당금액','실 배당금액','세후배당금액','평단가']);const f=(v,c)=>typeof v==='number'&&wonCols.has(c)?new Intl.NumberFormat('ko-KR',{maximumFractionDigits:0}).format(Math.round(v)):fmt(v);return '<div class="tablebox"><table><thead><tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+cols.map(c=>`<td class="${typeof r[c]==='number'?'num':''}">${esc(f(r[c],c))}</td>`).join('')+'</tr>').join('')+'</tbody></table></div>'}
