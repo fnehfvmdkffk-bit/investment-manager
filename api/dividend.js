@@ -1,8 +1,27 @@
 const clean=s=>String(s||'').replace(/<[^>]*>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
 const norm=s=>String(s||'').replace(/\s+/g,'').replace(/타켓/g,'타겟').toUpperCase();
+const KNOWN_CODES={
+ 'TIGER미국배당다우존스타겟커버드콜2호':'458760',
+ 'TIGER미국S&P500타겟데일리커버드콜':'482730',
+ 'KODEX미국배당다우존스타겟커버드콜':'483290',
+ 'TIGER미국나스닥100타겟데일리커버드콜':'486290',
+ 'TIGER미국테크TOP10타겟커버드콜':'474220',
+ 'KODEX미국AI테크TOP10타겟커버드콜':'483280'
+};
 async function lookupCode(name){
- const s=await fetch('https://m.stock.naver.com/front-api/search/autoComplete?query='+encodeURIComponent(name)+'&target=stock,index,marketindicator,coin,ipo',{headers:{'User-Agent':'Mozilla/5.0'}});
- const j=await s.json(),items=j?.result?.items||j?.items||[];const x=items.find(v=>norm(v.name)===norm(name))||items.find(v=>norm(v.name).includes(norm(name))||norm(name).includes(norm(v.name)));return x?.code||null;
+ const key=norm(name);
+ if(KNOWN_CODES[key])return KNOWN_CODES[key];
+ const queries=[String(name).replace(/타켓/g,'타겟'),String(name)];
+ for(const query of [...new Set(queries)]){
+  try{
+   const s=await fetch('https://m.stock.naver.com/front-api/search/autoComplete?query='+encodeURIComponent(query)+'&target=stock,index,marketindicator,coin,ipo',{headers:{'User-Agent':'Mozilla/5.0'}});
+   if(!s.ok)continue;
+   const j=await s.json(),items=j?.result?.items||j?.items||[];
+   const x=items.find(v=>norm(v.name)===key)||items.find(v=>norm(v.name).includes(key)||key.includes(norm(v.name)));
+   if(x&&/^[0-9A-Z]{6}$/.test(String(x.code||'')))return x.code;
+  }catch(e){}
+ }
+ return null;
 }
 export default async function handler(req,res){
  res.setHeader('Cache-Control','no-store');const name=String(req.query?.name||'').trim();if(!name)return res.status(400).json({error:'name'});
