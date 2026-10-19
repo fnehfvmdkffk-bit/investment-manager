@@ -19,7 +19,7 @@
 <div class="field product"><label>종목</label><select id="tradeProduct"></select></div>
 <div class="field"><label>수량</label><input type="number" id="tradeQty" min="0.000001" step="any" placeholder="수량"></div>
 <div class="field"><label>단가</label><input type="number" id="tradePrice" min="0" step="any" placeholder="매매단가"></div>
-<button class="primary" onclick="addTrade()">거래 반영</button></div>
+<button class="primary" onclick="addTrade()">거래 반영</button><button class="primary" onclick="importOct19Trades()">10/19 매수 5건 반영</button></div>
 <div class="note">매수는 가중평균으로 평단가가 변경됩니다. 매도는 기존 평단가를 유지하며 수량과 매수금액이 감소합니다. 입력 거래는 이 브라우저에 저장됩니다.</div>
 <div class="trade-history">
 <details>
@@ -57,6 +57,23 @@ function updateProductSelect(){const e=document.getElementById('tradeProduct'),p
 function calculatedHoldings(a){const m=new Map();(BASE_HOLDINGS[a]||[]).forEach(h=>m.set(h['상품명'],{...h}));TRADES.filter(t=>t.account===a).sort((x,y)=>(x.date||'').localeCompare(y.date||'')||x.id-y.id).forEach(t=>{let h=m.get(t.product);if(!h){h={'상품명':t.product,'배당기준':'','수량':0,'평단가':0,'매수금액':0};m.set(t.product,h)}let q=Number(h['수량'])||0,av=Number(h['평단가'])||0,am=Number(h['매수금액'])||q*av,tq=Number(t.qty)||0,pr=Number(t.price)||0;if(t.type==='매수'){let na=am+tq*pr,nq=q+tq;h['수량']=nq;h['매수금액']=na;h['평단가']=nq?na/nq:0}else{let sell=Math.min(tq,q),nq=q-sell;h['수량']=nq;h['평단가']=nq?av:0;h['매수금액']=nq?av*nq:0}});return [...m.values()]}
 function renderHistory(){const rs=TRADES.filter(t=>t.account===current).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||b.id-a.id);if(!rs.length){document.getElementById('tradeHistory').innerHTML='<div class="empty">입력한 거래가 없습니다.</div>';return}document.getElementById('tradeHistory').innerHTML='<div class="tablebox"><table><thead><tr><th>날짜</th><th>구분</th><th>종목</th><th>수량</th><th>단가</th><th></th></tr></thead><tbody>'+rs.map(t=>`<tr><td>${esc(t.date)}</td><td>${esc(t.type)}</td><td>${esc(t.product)}</td><td class="num">${esc(fmt(t.qty))}</td><td class="num">${esc(fmt(t.price))}</td><td><button class="danger" onclick="deleteTrade(${t.id})">취소</button></td></tr>`).join('')+'</tbody></table></div>'}
 function addTrade(){const date=document.getElementById('tradeDate').value,type=document.getElementById('tradeType').value,product=document.getElementById('tradeProduct').value,qty=Number(document.getElementById('tradeQty').value),price=Number(document.getElementById('tradePrice').value);if(!date||!product||!(qty>0)||!(price>=0)){alert('날짜, 종목, 수량, 단가를 확인해 주세요.');return}if(type==='매도'){const h=calculatedHoldings(current).find(x=>x['상품명']===product),owned=Number(h?.['수량'])||0;if(qty>owned){alert(`보유수량 ${fmt(owned)}주보다 많이 매도할 수 없습니다.`);return}}TRADES.push({id:Date.now(),account:current,date,type,product,qty,price});saveServerState();document.getElementById('tradeQty').value='';document.getElementById('tradePrice').value='';render()}
+async function importOct19Trades(){
+ const entries=[
+ ['연금저축2','TIGER 미국테크TOP10타겟커버드콜',10,14620],
+ ['연금저축2','ACE 미국반도체데일리타겟커버드콜(합성)',18,12685],
+ ['연금저축2','TIGER 미국AI빅테크10타겟데일리커버드콜',3,10835],
+ ['연금저축','KODEX 미국배당커버드콜액티브',1,12115],
+ ['연금저축','TIGER 미국나스닥100타겟데일리커버드콜',10,9990]
+ ];
+ const date='2026-10-19';
+ const pending=entries.filter(([account,product,qty,price])=>!TRADES.some(t=>t.account===account&&t.date===date&&t.type==='매수'&&t.product===product&&Number(t.qty)===qty&&Number(t.price)===price));
+ if(!pending.length){alert('10월 19일 매수 5건이 이미 등록되어 있습니다.');return}
+ if(!confirm('10월 19일 매수 '+pending.length+'건을 계좌별로 등록하시겠습니까?\\n연금저축2 3건 / 연금저축 2건'))return;
+ const now=Date.now();
+ pending.forEach(([account,product,qty,price],i)=>TRADES.push({id:now+i,account,date,type:'매수',product,qty,price}));
+ await saveServerState();render();
+ alert('매수 '+pending.length+'건을 반영했습니다. 동기화 상태를 확인해 주세요.');
+}
 function deleteTrade(id){TRADES=TRADES.filter(t=>t.id!==id);saveServerState();render()}
 
 
