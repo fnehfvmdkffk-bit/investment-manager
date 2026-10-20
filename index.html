@@ -17,7 +17,7 @@
 <div class="trade-form">
 <div class="field"><label>날짜</label><input type="date" id="tradeDate"></div>
 <div class="field"><label>구분</label><select id="tradeType"><option value="매수">매수</option><option value="매도">매도</option></select></div>
-<div class="field product"><label>종목</label><select id="tradeProduct"></select></div>
+<div class="field product"><label>종목</label><select id="tradeProduct" onchange="syncCodeInputs()"></select></div><div class="field"><label>종목코드 직접입력</label><input id="tradeStockCode" maxlength="6" placeholder="6자리 코드" onchange="saveCodeFromForm('trade')"></div>
 <div class="field"><label>수량</label><input type="number" id="tradeQty" min="0.000001" step="any" placeholder="수량"></div>
 <div class="field"><label>단가</label><input type="number" id="tradePrice" min="0" step="any" placeholder="매매단가"></div>
 <button class="primary" onclick="addTrade()">거래 반영</button><button class="primary" onclick="importOct19Trades()">10/19 매수 5건 반영</button></div>
@@ -32,7 +32,7 @@
 <div class="trade-form">
 <div class="field"><label>배당락 전 거래일</label><input type="date" id="divBaseDate"></div>
 <div class="field"><label>지급일</label><input type="date" id="divPayDate"></div>
-<div class="field product"><label>종목</label><select id="divProduct"></select></div>
+<div class="field product"><label>종목</label><select id="divProduct" onchange="syncCodeInputs()"></select></div><div class="field"><label>종목코드 직접입력</label><input id="divStockCode" maxlength="6" placeholder="6자리 코드" onchange="saveCodeFromForm('div')"></div>
 <div class="field"><label>배당단가</label><input type="number" id="divUnit" min="0" step="any" placeholder="1주당 배당"></div>
 <div class="field"><label>배당수량 (배당락 전 거래일 자동)</label><input type="number" id="divQty" min="0" step="any" placeholder="자동 계산" readonly></div>
 <div style="display:flex;gap:7px;flex-wrap:wrap"><button class="primary" onclick="openOfficialDividendSearch()">인터넷 배당 조회</button><button class="primary" onclick="addDividend()">배당 반영</button></div>
@@ -205,7 +205,27 @@ function setCapital(a,v){const n=Number(v);CAPITAL[a]=n>=0?n:0;localStorage.setI
 function productDividendTotal(a,p){return allDividendRows(a).filter(r=>String(r['상품명']||'')===String(p)).reduce((t,r)=>{let v=r['실 배당금액'];if(v==null)v=r['총 배당금액'];if(v==null)v=r['세후배당금액'];return t+(Number(v)||0)},0)}
 function holdingsWithReturns(a){return calculatedHoldings(a).map(h=>{const q=Number(h['수량'])||0,av=Number(h['평단가'])||0,cost=Number(h['매수금액'])||0,pr=Number(PRICES[priceKey(a,h['상품명'])])||0,val=pr*q,div=productDividendTotal(a,h['상품명']),evalProfit=pr?val-cost:null,profit=pr?evalProfit+div:null,rate=pr&&cost?profit/cost*100:null,evalRate=pr&&cost?evalProfit/cost*100:null;return {...h,'현재가격':pr,'평가금액':pr?val:null,'평가손익':evalProfit,'배당금':div,'수익금':profit,'수익률':rate,'평가수익률':evalRate}})}
 const HOLDING_CODES={"KODEX미국SP500데일리커버드콜OTM":"0005A0","TIGER미국배당다우존스타겟데일리커버드콜":"0008S0","RISE미국SP500데일리고정커버드콜":"0138T0","KODEX미국배당커버드콜액티브":"441640","TIGER미국나스닥100커버드콜합성":"441680","TIGER미국배당다우존스타겟커버드콜2호":"458760","ACE미국500데일리타겟커버드콜합성":"480030","TIGER미국SP500타겟데일리커버드콜":"482730","KODEX미국배당다우존스타겟커버드콜":"483290","TIGER미국나스닥100타겟데일리커버드콜":"486290","RISE미국배당100데일리고정커버드콜":"490600","SOL미국500타겟데일리커버드콜액티브":"494210","KODEX미국나스닥100데일리커버드콜OTM":"494300","PLUS미국배당증가성장주데일리커버드콜":"494420","KODEX미국성장커버드콜액티브":"0144L0","TIGER미국테크TOP10타겟커버드콜":"474220","ACE미국빅테크7데일리타겟커버드콜합성":"480020","ACE미국반도체데일리타겟커버드콜합성":"480040","KODEX미국AI테크TOP10타겟커버드콜":"483280","RISE미국AI밸류체인데일리고정커버드콜":"490590","RISE미국테크100데일리고정커버드콜":"491620","TIGER미국AI빅테크10타겟데일리커버드콜":"493810","TIGER리츠부동산인프라TOP10액티브":"0086B0","TIGER리츠부동산인프라10채권혼합액티브":"0086C0","ACE미국30년국채액티브H":"453850","TIGER리츠부동산인프라":"329200"};
-function holdingStockCode(name){return HOLDING_CODES[holdingNameKey(name)]||'-'}
+const CODE_STORE_KEY='investment_manual_codes_v1';
+let MANUAL_CODES={};try{MANUAL_CODES=JSON.parse(localStorage.getItem(CODE_STORE_KEY)||'{}')}catch(e){}
+function holdingStockCode(name){const key=holdingNameKey(name);return MANUAL_CODES[key]||HOLDING_CODES[key]||'-'}
+function saveManualCode(name,code){
+ code=String(code||'').trim().toUpperCase();
+ if(code&&!/^[A-Z0-9]{6}$/.test(code)){alert('종목코드는 영문 또는 숫자 6자리로 입력해 주세요.');return false}
+ const key=holdingNameKey(name);
+ if(code)MANUAL_CODES[key]=code;else delete MANUAL_CODES[key];
+ localStorage.setItem(CODE_STORE_KEY,JSON.stringify(MANUAL_CODES));
+ saveServerState();return true;
+}
+function syncCodeInputs(){
+ const t=document.getElementById('tradeProduct'),d=document.getElementById('divProduct');
+ if(t)document.getElementById('tradeStockCode').value=holdingStockCode(t.value).replace('-','');
+ if(d)document.getElementById('divStockCode').value=holdingStockCode(d.value).replace('-','');
+}
+function saveCodeFromForm(kind){
+ const isTrade=kind==='trade',p=document.getElementById(isTrade?'tradeProduct':'divProduct'),v=document.getElementById(isTrade?'tradeStockCode':'divStockCode');
+ if(p&&v&&saveManualCode(p.value,v.value))render();
+}
+
 function holdingsTable(){const rows=holdingsWithReturns(current).sort((a,b)=>{const ar=a['수익률'],br=b['수익률'];if(ar==null&&br==null)return 0;if(ar==null)return 1;if(br==null)return -1;return br-ar});if(!rows.length)return '<div class="empty">표시할 데이터가 없습니다.</div>';return '<div class="tablebox"><table><thead><tr><th>상품명</th><th>종목코드</th><th>배당기준</th><th>수량</th><th>평단가</th><th>현재가격</th><th>매수금액</th><th>평가금액</th><th>평가손익</th><th>수익률</th><th>누적 배당금</th><th>배당포함 수익금</th><th>배당포함 수익률</th></tr></thead><tbody>'+rows.map(h=>{const k=priceKey(current,h['상품명']);return `<tr><td>${esc(h['상품명'])}</td><td data-stock-code="${esc(h['상품명'])}">${esc(holdingStockCode(h['상품명']))}</td><td>${esc(h['배당기준'])}</td><td class="num">${fmt(h['수량'])}</td><td class="num">${fmt(h['평단가'])}</td><td class="num"><input type="number" min="0" step="1" value="${PRICES[k]||''}" placeholder="가격 입력" style="width:80px;padding:6px;border:1px solid var(--line);border-radius:7px;text-align:right" onchange='setCurrentPrice(${JSON.stringify(k)},this.value)'></td><td class="num">${fmt(h['매수금액'])}</td><td class="num">${h['평가금액']==null?'-':fmt(h['평가금액'])}</td><td class="num ${h['평가손익']>0?'profit-pos':h['평가손익']<0?'profit-neg':''}">${h['평가손익']==null?'-':fmt(h['평가손익'])}</td><td class="num ${h['평가수익률']>0?'profit-pos':h['평가수익률']<0?'profit-neg':''}">${h['평가수익률']==null?'-':fmt(h['평가수익률'])+'%'}</td><td class="num">${fmt(h['배당금'])}</td><td class="num ${h['수익금']>0?'profit-pos':h['수익금']<0?'profit-neg':''}">${h['수익금']==null?'-':fmt(h['수익금'])}</td><td class="num ${h['수익률']>0?'profit-pos':h['수익률']<0?'profit-neg':''}">${h['수익률']==null?'-':fmt(h['수익률'])+'%'}</td></tr>`}).join('')+'</tbody></table></div>'}
 function setCurrentPrice(k,v){const n=Number(v);if(n>0)PRICES[k]=n;else delete PRICES[k];localStorage.setItem(PRICE_STORE_KEY,JSON.stringify(PRICES));saveServerState();document.getElementById('holdings').innerHTML=holdingsTable()}
 async function refreshAllPrices(){
@@ -285,7 +305,7 @@ async function refreshAllDividends(rebuild=false){
  const detail=document.getElementById('dividendFailureDetail');if(detail){detail.hidden=!failedItems.length;detail.textContent=failedItems.length?'배당 조회 실패 내역 ('+failedItems.length+'건)\n'+failedItems.map((x,i)=>(i+1)+'. '+x).join('\n'):'';}
  return {added,updated,checked,failed,failedItems};
 }
-function render(){updateSummary();tabs();updateProductSelect();updateDividendProductSelect();document.getElementById('holdings').innerHTML=holdingsTable();renderHistory();renderDividendInputHistory();renderDivs()}
+function render(){updateSummary();tabs();updateProductSelect();updateDividendProductSelect();syncCodeInputs();document.getElementById('holdings').innerHTML=holdingsTable();renderHistory();renderDividendInputHistory();renderDivs()}
 function dividendTable(rows,cols){if(!rows.length)return '<div class="empty">표시할 데이터가 없습니다.</div>';const wonCols=new Set(['배당단가','총 배당금액','실 배당금액','세후배당금액','평단가']);const f=(v,c)=>typeof v==='number'&&wonCols.has(c)?new Intl.NumberFormat('ko-KR',{maximumFractionDigits:0}).format(Math.round(v)):fmt(v);return '<div class="tablebox"><table><thead><tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+cols.map(c=>`<td class="${typeof r[c]==='number'?'num':''}">${esc(f(r[c],c))}</td>`).join('')+'</tr>').join('')+'</tbody></table></div>'}
 function renderDivs(){const q=document.getElementById('search').value.trim().toLowerCase();let rows=allDividendRows(current).filter(r=>!q||String(r['상품명']||'').toLowerCase().includes(q));let preferred=['상품명','기준일','지급일','배당단가','배당수량','총 배당금액','실 배당금액','환율','세전배당금액($)','세후배당금액($)','세후배당금액','평단가'];let cols=preferred.filter(c=>rows.some(r=>r[c]!=null));document.getElementById('dividends').innerHTML=dividendTable(rows,cols)}
 function selectTab(n){current=n;render()}document.getElementById('search').addEventListener('input',renderDivs);document.getElementById('tradeDate').value=new Date().toISOString().slice(0,10);
@@ -298,7 +318,7 @@ async function saveServerState(){
   const st=document.getElementById('syncStatus');
   try{
     st.textContent='저장 중...';st.classList.remove('auth-hidden');
-    const r=await fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({trades:TRADES,dividends:USER_DIVS,prices:PRICES,capital:CAPITAL})});
+    const r=await fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({trades:TRADES,dividends:USER_DIVS,prices:PRICES,capital:CAPITAL,codes:MANUAL_CODES})});
     if(r.status===401){showLogin();return}
     if(!r.ok)throw new Error('save failed');
     localStorage.setItem(STORE_KEY,JSON.stringify(TRADES));localStorage.setItem(DIV_STORE_KEY,JSON.stringify(USER_DIVS));localStorage.setItem(PRICE_STORE_KEY,JSON.stringify(PRICES));localStorage.setItem(CAPITAL_STORE_KEY,JSON.stringify(CAPITAL));
@@ -314,9 +334,9 @@ async function loginApp(){
 document.getElementById('loginPassword').addEventListener('keydown',e=>{if(e.key==='Enter')loginApp()});
 async function loadServerState(){
   try{const r=await fetch('/api/state',{cache:'no-store'});if(r.status===401){showLogin();return}if(!r.ok)throw new Error('load failed');const data=await r.json();
-    const serverTrades=Array.isArray(data.trades)?data.trades:[],serverDivs=Array.isArray(data.dividends)?data.dividends:[],serverPrices=data.prices&&typeof data.prices==='object'?data.prices:{},serverCapital=data.capital&&typeof data.capital==='object'?data.capital:null;
+    const serverTrades=Array.isArray(data.trades)?data.trades:[],serverDivs=Array.isArray(data.dividends)?data.dividends:[],serverPrices=data.prices&&typeof data.prices==='object'?data.prices:{},serverCapital=data.capital&&typeof data.capital==='object'?data.capital:null,serverCodes=data.codes&&typeof data.codes==='object'?data.codes:{};
     const localTrades=TRADES,localDivs=USER_DIVS;
-    if(serverTrades.length===0&&serverDivs.length===0&&Object.keys(serverPrices).length===0&&(localTrades.length||localDivs.length||Object.keys(PRICES).length)){TRADES=localTrades;USER_DIVS=localDivs;await saveServerState()}else{TRADES=serverTrades;USER_DIVS=serverDivs;PRICES=serverPrices;if(serverCapital)CAPITAL={...DEFAULT_CAPITAL,...serverCapital};localStorage.setItem(CAPITAL_STORE_KEY,JSON.stringify(CAPITAL));localStorage.setItem(STORE_KEY,JSON.stringify(TRADES));localStorage.setItem(DIV_STORE_KEY,JSON.stringify(USER_DIVS));localStorage.setItem(PRICE_STORE_KEY,JSON.stringify(PRICES))}
+    if(serverTrades.length===0&&serverDivs.length===0&&Object.keys(serverPrices).length===0&&(localTrades.length||localDivs.length||Object.keys(PRICES).length)){TRADES=localTrades;USER_DIVS=localDivs;await saveServerState()}else{TRADES=serverTrades;USER_DIVS=serverDivs;PRICES=serverPrices;MANUAL_CODES=serverCodes;if(serverCapital)CAPITAL={...DEFAULT_CAPITAL,...serverCapital};localStorage.setItem(CAPITAL_STORE_KEY,JSON.stringify(CAPITAL));localStorage.setItem(STORE_KEY,JSON.stringify(TRADES));localStorage.setItem(DIV_STORE_KEY,JSON.stringify(USER_DIVS));localStorage.setItem(PRICE_STORE_KEY,JSON.stringify(PRICES));localStorage.setItem(CODE_STORE_KEY,JSON.stringify(MANUAL_CODES))}
     hideLogin();render();refreshAllAccountPrices().then(()=>refreshAllDividends(false));
   }catch(e){document.getElementById('loginError').textContent='데이터를 불러오지 못했습니다.';showLogin()}
 }
