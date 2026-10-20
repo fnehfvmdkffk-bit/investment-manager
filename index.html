@@ -17,7 +17,7 @@
 <div class="trade-form">
 <div class="field"><label>날짜</label><input type="date" id="tradeDate"></div>
 <div class="field"><label>구분</label><select id="tradeType"><option value="매수">매수</option><option value="매도">매도</option></select></div>
-<div class="field product"><label>종목</label><select id="tradeProduct" onchange="syncCodeInputs()"></select></div><div class="field"><label>종목코드 직접입력</label><input id="tradeStockCode" maxlength="6" placeholder="6자리 코드" onchange="saveCodeFromForm('trade')"></div>
+<div class="field product"><label>종목</label><select id="tradeProduct" onchange="syncCodeInputs()"></select></div><div class="field"><label>종목코드 직접입력</label><input id="tradeStockCode" maxlength="6" placeholder="6자리 코드" onchange="resolveEnteredCode('trade')"></div>
 <div class="field"><label>수량</label><input type="number" id="tradeQty" min="0.000001" step="any" placeholder="수량"></div>
 <div class="field"><label>단가</label><input type="number" id="tradePrice" min="0" step="any" placeholder="매매단가"></div>
 <button class="primary" onclick="addTrade()">거래 반영</button><button class="primary" onclick="importOct19Trades()">10/19 매수 5건 반영</button></div>
@@ -32,7 +32,7 @@
 <div class="trade-form">
 <div class="field"><label>배당락 전 거래일</label><input type="date" id="divBaseDate"></div>
 <div class="field"><label>지급일</label><input type="date" id="divPayDate"></div>
-<div class="field product"><label>종목</label><select id="divProduct" onchange="syncCodeInputs()"></select></div><div class="field"><label>종목코드 직접입력</label><input id="divStockCode" maxlength="6" placeholder="6자리 코드" onchange="saveCodeFromForm('div')"></div>
+<div class="field product"><label>종목</label><select id="divProduct" onchange="syncCodeInputs()"></select></div><div class="field"><label>종목코드 직접입력</label><input id="divStockCode" maxlength="6" placeholder="6자리 코드" onchange="resolveEnteredCode('div')"></div>
 <div class="field"><label>배당단가</label><input type="number" id="divUnit" min="0" step="any" placeholder="1주당 배당"></div>
 <div class="field"><label>배당수량 (배당락 전 거래일 자동)</label><input type="number" id="divQty" min="0" step="any" placeholder="자동 계산" readonly></div>
 <div style="display:flex;gap:7px;flex-wrap:wrap"><button class="primary" onclick="openOfficialDividendSearch()">인터넷 배당 조회</button><button class="primary" onclick="addDividend()">배당 반영</button></div>
@@ -53,7 +53,7 @@ const fmt=v=>typeof v==='number'?new Intl.NumberFormat('ko-KR',{maximumFractionD
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 function tabs(){document.getElementById('tabs').innerHTML=names.map(n=>`<button class="tab ${n===current?'active':''}" onclick='selectTab(${JSON.stringify(n)})'>${esc(n)}</button>`).join('')}
 function table(rows,cols){if(!rows.length)return '<div class="empty">표시할 데이터가 없습니다.</div>';return '<div class="tablebox"><table><thead><tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+cols.map(c=>`<td class="${typeof r[c]==='number'?'num':''}">${esc(fmt(r[c]))}</td>`).join('')+'</tr>').join('')+'</tbody></table></div>'}
-function productsFor(a){const s=new Set(),o=[];[...(BASE_HOLDINGS[a]||[]),...(DATA[a].rows||[])].forEach(r=>{const n=String(r['상품명']||'').trim();if(n&&!s.has(n)){s.add(n);o.push(n)}});return o}
+function productsFor(a){const s=new Set(),o=[];[...(BASE_HOLDINGS[a]||[]),...(DATA[a].rows||[]),...TRADES.filter(t=>t.account===a).map(t=>({'상품명':t.product}))].forEach(r=>{const n=String(r['상품명']||'').trim();if(n&&!s.has(n)){s.add(n);o.push(n)}});return o}
 function updateProductSelect(){const e=document.getElementById('tradeProduct'),p=e.value,ps=productsFor(current);e.innerHTML=ps.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');if(ps.includes(p))e.value=p}
 function holdingNameKey(s){return String(s||'').normalize('NFKC').replace(/타켓/g,'타겟').replace(/[^0-9a-zA-Z가-힣]/g,'').toUpperCase()}
 function canonicalHoldingName(account,name){
@@ -221,9 +221,25 @@ function syncCodeInputs(){
  if(t)document.getElementById('tradeStockCode').value=holdingStockCode(t.value).replace('-','');
  if(d)document.getElementById('divStockCode').value=holdingStockCode(d.value).replace('-','');
 }
-function saveCodeFromForm(kind){
+async function resolveEnteredCode(kind){
  const isTrade=kind==='trade',p=document.getElementById(isTrade?'tradeProduct':'divProduct'),v=document.getElementById(isTrade?'tradeStockCode':'divStockCode');
- if(p&&v&&saveManualCode(p.value,v.value))render();
+ const code=String(v.value||'').trim().toUpperCase();
+ if(!/^[A-Z0-9]{6}$/.test(code)){alert('종목코드는 영문·숫자 6자리로 입력해 주세요.');return}
+ const known=productsFor(current).find(name=>holdingStockCode(name)===code);
+ let name=known;
+ if(!name){
+  try{
+   const r=await fetch('/api/code-name?code='+encodeURIComponent(code));
+   if(!r.ok)throw Error('not_found');
+   const data=await r.json();name=String(data.name||'').trim();
+  }catch(e){alert('종목코드 '+code+'의 종목명을 찾지 못했습니다. 코드를 확인해 주세요.');return}
+ }
+ const existing=productsFor(current).find(x=>holdingNameKey(x)===holdingNameKey(name));
+ name=existing||name;
+ if(![...p.options].some(o=>o.value===name))p.add(new Option(name,name));
+ p.value=name;
+ saveManualCode(name,code);
+ syncCodeInputs();
 }
 
 function holdingsTable(){const rows=holdingsWithReturns(current).sort((a,b)=>{const ar=a['수익률'],br=b['수익률'];if(ar==null&&br==null)return 0;if(ar==null)return 1;if(br==null)return -1;return br-ar});if(!rows.length)return '<div class="empty">표시할 데이터가 없습니다.</div>';return '<div class="tablebox"><table><thead><tr><th>상품명</th><th>종목코드</th><th>배당기준</th><th>수량</th><th>평단가</th><th>현재가격</th><th>매수금액</th><th>평가금액</th><th>평가손익</th><th>수익률</th><th>누적 배당금</th><th>배당포함 수익금</th><th>배당포함 수익률</th></tr></thead><tbody>'+rows.map(h=>{const k=priceKey(current,h['상품명']);return `<tr><td>${esc(h['상품명'])}</td><td data-stock-code="${esc(h['상품명'])}">${esc(holdingStockCode(h['상품명']))}</td><td>${esc(h['배당기준'])}</td><td class="num">${fmt(h['수량'])}</td><td class="num">${fmt(h['평단가'])}</td><td class="num"><input type="number" min="0" step="1" value="${PRICES[k]||''}" placeholder="가격 입력" style="width:80px;padding:6px;border:1px solid var(--line);border-radius:7px;text-align:right" onchange='setCurrentPrice(${JSON.stringify(k)},this.value)'></td><td class="num">${fmt(h['매수금액'])}</td><td class="num">${h['평가금액']==null?'-':fmt(h['평가금액'])}</td><td class="num ${h['평가손익']>0?'profit-pos':h['평가손익']<0?'profit-neg':''}">${h['평가손익']==null?'-':fmt(h['평가손익'])}</td><td class="num ${h['평가수익률']>0?'profit-pos':h['평가수익률']<0?'profit-neg':''}">${h['평가수익률']==null?'-':fmt(h['평가수익률'])+'%'}</td><td class="num">${fmt(h['배당금'])}</td><td class="num ${h['수익금']>0?'profit-pos':h['수익금']<0?'profit-neg':''}">${h['수익금']==null?'-':fmt(h['수익금'])}</td><td class="num ${h['수익률']>0?'profit-pos':h['수익률']<0?'profit-neg':''}">${h['수익률']==null?'-':fmt(h['수익률'])+'%'}</td></tr>`}).join('')+'</tbody></table></div>'}
