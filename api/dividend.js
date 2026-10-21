@@ -25,7 +25,7 @@ async function lookupCode(name){
 }
 
 const TIGER_ROOT='https://investments.miraeasset.com/tigeretf/ko/customer/notice/';
-const decodeHtml=s=>String(s||'').replace(/<script\\b[^>]*>[\\s\\S]*?<\\/script>/gi,' ').replace(/<style\\b[^>]*>[\\s\\S]*?<\\/style>/gi,' ').replace(/<[^>]*>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\\s+/g,' ').trim();
+const decodeHtml=s=>String(s||'').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ').replace(/<[^>]*>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\s+/g,' ').trim();
 const iso=(y,m,d)=>{const x=new Date(Date.UTC(+y,+m-1,+d));return x.getUTCFullYear()===+y&&x.getUTCMonth()===+m-1&&x.getUTCDate()===+d?String(y)+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'):null};
 async function tigerNotice(code){
  const headers={'User-Agent':'Mozilla/5.0','Accept':'text/html,application/xhtml+xml','Accept-Language':'ko-KR,ko;q=0.9'};
@@ -33,7 +33,7 @@ async function tigerNotice(code){
  if(!listing.ok)throw Error('notice_list_'+listing.status);
  const listHtml=await listing.text();
  const candidates=[];
- const re=/detailsKey=(\\d+)[\\s\\S]{0,650}?(?:분배금\\s*지급\\s*안내|분배금\\s*안내)|(?:분배금\\s*지급\\s*안내|분배금\\s*안내)[\\s\\S]{0,650}?detailsKey=(\\d+)/gi;
+ const re=/detailsKey=(\d+)[\s\S]{0,650}?(?:분배금\s*지급\s*안내|분배금\s*안내)|(?:분배금\s*지급\s*안내|분배금\s*안내)[\s\S]{0,650}?detailsKey=(\d+)/gi;
  for(const m of listHtml.matchAll(re)){const id=m[1]||m[2];if(!candidates.includes(id))candidates.push(id)}
  // Known verified notice provides a safe fallback if the listing markup changes.
  if(!candidates.includes('767'))candidates.push('767');
@@ -43,19 +43,19 @@ async function tigerNotice(code){
    const response=await fetch(TIGER_ROOT+'view.do?listCnt=10&pageIndex=1&detailsKey='+id+'&q=',{headers,signal:AbortSignal.timeout(9000)});
    if(!response.ok)continue;
    const html=await response.text(),plain=decodeHtml(html);
-   if(!/분배금\\s*(지급\\s*)?안내/.test(plain))continue;
-   const title=plain.match(/TIGER ETF\\s*(20\\d{2})년\\s*(\\d{1,2})월[^\\n]{0,25}?분배금\\s*지급\\s*안내/);
+   if(!/분배금\s*(지급\s*)?안내/.test(plain))continue;
+   const title=plain.match(/TIGER ETF\s*(20\d{2})년\s*(\d{1,2})월[^\n]{0,25}?분배금\s*지급\s*안내/);
    if(!title)continue;
    const year=title[1],month=title[2];
-   const dateMatch=plain.match(/(?:분배금\\s*)?지급기준일\\s*[:：]?\\s*(?:(20\\d{2})[.\\-/년 ]+)?(\\d{1,2})[.\\-/월 ]+(\\d{1,2})/);
+   const dateMatch=plain.match(/(?:분배금\s*)?지급기준일\s*[:：]?\s*(?:(20\d{2})[.\-/년 ]+)?(\d{1,2})[.\-/월 ]+(\d{1,2})/);
    const recordDate=dateMatch?iso(dateMatch[1]||year,dateMatch[2],dateMatch[3]):null;
    if(!recordDate)continue;
-   for(const table of html.match(/<table\\b[^>]*>[\\s\\S]*?<\\/table>/gi)||[]){
-    for(const tr of table.match(/<tr\\b[^>]*>[\\s\\S]*?<\\/tr>/gi)||[]){
-     const cells=[...tr.matchAll(/<t[dh]\\b[^>]*>([\\s\\S]*?)<\\/t[dh]>/gi)].map(x=>decodeHtml(x[1]));
+   for(const table of html.match(/<table\b[^>]*>[\s\S]*?<\/table>/gi)||[]){
+    for(const tr of table.match(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)||[]){
+     const cells=[...tr.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(x=>decodeHtml(x[1]));
      const i=cells.findIndex(v=>v===code);
      if(i<0)continue;
-     const unit=Number((cells[i+2]||'').replace(/[,원\\s]/g,''));
+     const unit=Number((cells[i+2]||'').replace(/[,원\s]/g,''));
      if(unit>0&&unit<100000)records.push({recordDate,payDate:'',unit,noticeId:id,source:'TIGER official notice'});
     }
    }
