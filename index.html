@@ -170,7 +170,12 @@ function allDividendRows(account){
         || (date&&z['기준일']===prevTradingDay(prevTradingDay(date)))
         || (z['기준일']&&date===prevTradingDay(prevTradingDay(z['기준일'])))));
     if(!same)result.push(item);
-    else if(!same['지급일']&&pay)same['지급일']=pay;
+    else {
+      // Keep the verified payment date from either matching source.
+      if(!same['지급일']&&pay)same['지급일']=pay;
+      // Prefer the actual record date when an older row used the ex-dividend date.
+      if(item._user&&item['기준일']&&same['기준일']!==item['기준일']&&item['지급일'])same['기준일']=item['기준일'];
+    }
   }
   return result;
 }
@@ -313,6 +318,8 @@ async function refreshAllDividends(rebuild=false){
      if(old){
       if(old.source==='auto'&&Number(old.unit)!==unit){old.unit=unit;updated++}
       if(old.source==='auto'&&payDate&&old.payDate!==payDate){old.payDate=payDate;updated++}
+      if(old.source==='auto'&&recordDate&&old.recordDate!==recordDate){old.recordDate=recordDate;old.baseDate=recordDate;updated++}
+      if(old.source==='auto'&&payDate&&old.status!=='scheduled'){old.status='scheduled';updated++}
       continue;
      }
      const hs=holdingStateAtDate(a,h['상품명'],baseDate);
