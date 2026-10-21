@@ -80,6 +80,16 @@ export default async function handler(req,res){
    return res.status(200).json({mode:'read-only',blocks,taskContext,ids});
   }catch(e){return res.status(200).json({error:String(e)})}
  }
+ if(brand==='RISE'&&req.query?.execute==='1'){
+  const endpoint='https://seibro.or.kr/websquare/engine/proworks/callServletService.jsp';
+  const payload='<?xml version="1.0" encoding="UTF-8"?><reqParam><task>ksd.safe.bip.cnts.etf.process.EtfExerInfoPTask</task><action>exerInfoDtramtPayStatPlist</action><isin>490600</isin><fromRGT_STD_DT>20260101</fromRGT_STD_DT><toRGT_STD_DT>20261021</toRGT_STD_DT><START_PAGE>1</START_PAGE><END_PAGE>20</END_PAGE></reqParam>';
+  const started=Date.now();
+  try{
+   const response=await fetch(endpoint,{method:'POST',signal:AbortSignal.timeout(12000),headers:{'Content-Type':'application/xml; charset=UTF-8','Accept':'application/xml,text/xml,*/*','Origin':'https://seibro.or.kr','Referer':'https://seibro.or.kr/websquare/control.jsp?w2xPath=/IPORTAL/user/etf/BIP_CNTS06030V.xml','User-Agent':'Mozilla/5.0'},body:payload});
+   const body=await response.text();
+   return res.status(200).json({mode:'read-only',code:'490600',requestMethod:'POST',httpStatus:response.status,elapsedMs:Date.now()-started,responseBytes:body.length,responseExcerpt:body.slice(0,2400),note:'Diagnostic only. No dividend data written.'});
+  }catch(e){return res.status(200).json({mode:'read-only',code:'490600',elapsedMs:Date.now()-started,error:String(e?.message||e),note:'No dividend data written.'})}
+ }
  const entries=brand?[[brand,sources[brand]]]:Object.entries(sources);
  // Probe alternate official RISE hostnames in parallel; diagnostics only.
  if(brand==='RISE'&&req.query?.probe==='1'){
