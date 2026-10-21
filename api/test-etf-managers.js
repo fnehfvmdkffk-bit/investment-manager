@@ -109,6 +109,20 @@ export default async function handler(req,res){
   }));
   return res.status(200).json({mode:'read-only',results});
  }
+ if(brand==='RISE'&&req.query?.bootstrap==='1'){
+  const urls=['https://seibro.or.kr/websquare/control.jsp?w2xPath=/IPORTAL/user/etf/BIP_CNTS06030V.xml&menuNo=179','https://seibro.or.kr/IPORTAL/user/etf/BIP_CNTS06030V.xml'];
+  const results=await Promise.all(urls.map(async url=>{
+   try{
+    const response=await fetch(url,{signal:AbortSignal.timeout(9000),headers:{'User-Agent':'Mozilla/5.0'}});
+    const body=await response.text();
+    const scripts=[...body.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi)].map(m=>m[1]).slice(0,70);
+    const includes=[...body.matchAll(/(?:src|href)\s*=\s*["']([^"']+\.(?:js|wq)(?:\?[^"']*)?)["']/gi)].map(m=>m[1]).slice(0,70);
+    const taskMatches=[...body.matchAll(/\bcallTask\s*\(/g)].slice(0,8).map(m=>body.slice(Math.max(0,m.index-400),m.index+650));
+    return {url,status:response.status,bytes:body.length,scripts,includes,taskMatches};
+   }catch(e){return {url,error:String(e)}}
+  }));
+  return res.status(200).json({mode:'read-only',results});
+ }
  const entries=brand?[[brand,sources[brand]]]:Object.entries(sources);
  // Probe alternate official RISE hostnames in parallel; diagnostics only.
  if(brand==='RISE'&&req.query?.probe==='1'){
