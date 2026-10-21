@@ -194,6 +194,14 @@ function allDividendRows(account){
     const verified=verifiedTigerDates[pay];
     if(verified&&row['기준일']!==verified)row['기준일']=verified;
   }
+  // Fill verified payment dates for legacy TIGER entries with an empty payment field.
+  // Restrict to the confirmed September/October 2026 record dates.
+  for(const row of result){
+    if(!/^TIGER/i.test(String(row['상품명']||'')))continue;
+    const record=String(row['기준일']||'');
+    const verifiedPay=record==='2026-10-15'?'2026-10-19':record==='2026-09-15'?'2026-09-17':'';
+    if(verifiedPay&&!String(row['지급일']||'').trim())row['지급일']=verifiedPay;
+  }
   return result;
 }
 function addDividend(){
