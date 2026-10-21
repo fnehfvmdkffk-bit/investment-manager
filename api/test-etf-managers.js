@@ -28,6 +28,16 @@ export default async function handler(req,res){
   }));
   return res.status(200).json({mode:'read-only',source:'KRX KIND official disclosures',results});
  }
+ if(brand==='RISE'&&req.query?.seibro==='1'){
+  const urls=['https://seibro.or.kr/websquare/control.jsp?w2xPath=/IPORTAL/user/etf/BIP_CNTS06030V.xml&menuNo=179','https://m.seibro.or.kr/cmmn/allView.do','https://api.seibro.or.kr/pubc/pubr/cmm/CMPubrHome/viewCMPubrHome.do'];
+  const results=await Promise.all(urls.map(async url=>{
+   const started=Date.now();
+   try{const response=await fetch(url,{signal:AbortSignal.timeout(8000),redirect:'follow',headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html,application/xhtml+xml','Accept-Language':'ko-KR,ko;q=0.9'}});
+    const body=await response.text();return {url,status:response.status,ok:response.ok,elapsedMs:Date.now()-started,bytes:body.length,hasEtf:/ETF|분배금|etf/i.test(body)};
+   }catch(e){return {url,ok:false,elapsedMs:Date.now()-started,error:String(e?.name||e)}}
+  }));
+  return res.status(200).json({mode:'read-only',source:'KSD SEIBro official',results});
+ }
  const entries=brand?[[brand,sources[brand]]]:Object.entries(sources);
  // Probe alternate official RISE hostnames in parallel; diagnostics only.
  if(brand==='RISE'&&req.query?.probe==='1'){
