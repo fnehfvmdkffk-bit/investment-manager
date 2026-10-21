@@ -186,6 +186,14 @@ function allDividendRows(account){
       if(item._user&&item['기준일']&&same['기준일']!==item['기준일']&&item['지급일'])same['기준일']=item['기준일'];
     }
   }
+  // Normalize verified TIGER dates after combining baseline and imported rows.
+  // Historical records can live in either collection, so correcting base alone is insufficient.
+  for(const row of result){
+    if(!/^TIGER/i.test(String(row['상품명']||'')))continue;
+    const pay=String(row['지급일']||'');
+    const verified=verifiedTigerDates[pay];
+    if(verified&&row['기준일']!==verified)row['기준일']=verified;
+  }
   return result;
 }
 function addDividend(){
