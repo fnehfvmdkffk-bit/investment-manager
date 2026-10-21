@@ -38,6 +38,15 @@ export default async function handler(req,res){
   }));
   return res.status(200).json({mode:'read-only',source:'KSD SEIBro official',results});
  }
+ if(brand==='RISE'&&req.query?.inspect==='1'){
+  const urls=['https://seibro.or.kr/websquare/control.jsp?w2xPath=/IPORTAL/user/etf/BIP_CNTS06030V.xml&menuNo=179','https://m.seibro.or.kr/cmmn/allView.do','https://api.seibro.or.kr/pubc/pubr/cmm/CMPubrHome/viewCMPubrHome.do'];
+  const results=await Promise.all(urls.map(async url=>{
+   try{const response=await fetch(url,{signal:AbortSignal.timeout(8000),headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html'}});
+    const html=await response.text();return {url,status:response.status,excerpt:html.slice(0,1700),scripts:[...html.matchAll(/<script[^>]+src=["']([^"']+)/gi)].map(m=>m[1]).slice(0,12)};
+   }catch(e){return {url,error:String(e)}}
+  }));
+  return res.status(200).json({mode:'read-only',results});
+ }
  const entries=brand?[[brand,sources[brand]]]:Object.entries(sources);
  // Probe alternate official RISE hostnames in parallel; diagnostics only.
  if(brand==='RISE'&&req.query?.probe==='1'){
