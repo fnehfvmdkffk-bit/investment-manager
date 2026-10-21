@@ -34,7 +34,7 @@ export default async function handler(req,res){
   const urls=['https://kbam.co.kr/support/notice/842','https://www.kbam.co.kr/support/notice/842','https://www.riseetf.co.kr/','https://riseetf.co.kr/'];
   const results=await Promise.all(urls.map(async url=>{
    const started=Date.now();
-   try{const response=await fetch(url,{signal:AbortSignal.timeout(5000),redirect:'follow',headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html','Accept-Language':'ko-KR,ko;q=0.9'}});
+   try{const response=await fetch(url,{signal:AbortSignal.timeout(25000),redirect:'follow',headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html','Accept-Language':'ko-KR,ko;q=0.9'}});
     const html=await response.text();
     return {url,status:response.status,ok:response.ok,elapsedMs:Date.now()-started,bytes:html.length,hasDividendKeyword:/분배금|배당금/.test(html),tableCount:(html.match(/<table\\b/gi)||[]).length};
    }catch(e){return {url,ok:false,elapsedMs:Date.now()-started,error:String(e?.name||e)}}
@@ -44,7 +44,7 @@ export default async function handler(req,res){
  const results=await Promise.all(entries.map(async ([name,url])=>{
   const started=Date.now();
   try{
-   const response=await fetch(url,{signal:AbortSignal.timeout(9000),redirect:'follow',headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html,application/xhtml+xml','Accept-Language':'ko-KR,ko;q=0.9'}});
+   const response=await fetch(url,{signal:AbortSignal.timeout(name==='RISE'?25000:9000),redirect:'follow',headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html,application/xhtml+xml','Accept-Language':'ko-KR,ko;q=0.9'}});
    const html=await response.text();
    const plain=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
    return {brand:name,url,status:response.status,ok:response.ok,elapsedMs:Date.now()-started,htmlBytes:Buffer.byteLength(html),hasDividendKeyword:/분배금|배당금/.test(plain),tableCount:(html.match(/<table\b/gi)||[]).length,verifiedDividendRecords:0,dividendExcerpt:(()=>{const p=plain.indexOf('분배금 지급현황');return p<0?'':plain.slice(p,p+650)})(),note:'접속 및 본문 검사. 분배금 추출 미검증'};
