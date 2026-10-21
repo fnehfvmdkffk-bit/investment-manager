@@ -123,6 +123,19 @@ export default async function handler(req,res){
   }));
   return res.status(200).json({mode:'read-only',results});
  }
+ if(brand==='RISE'&&req.query?.bootloader==='1'){
+  const urls=['https://seibro.or.kr/websquare/javascript.wq?q=/bootloader','https://seibro.or.kr/javascript.wq?q=/bootloader','https://seibro.or.kr/websquare/control.jsp?w2xPath=/IPORTAL/user/etf/BIP_CNTS06030V.xml'];
+  const results=await Promise.all(urls.map(async url=>{
+   try{
+    const response=await fetch(url,{signal:AbortSignal.timeout(8500),headers:{'User-Agent':'Mozilla/5.0','Referer':'https://seibro.or.kr/websquare/control.jsp?w2xPath=/IPORTAL/user/etf/BIP_CNTS06030V.xml'}});
+    const body=await response.text();
+    const terms=['callTask','javascript.wq','WebSquare','proworks','src=','bootloader'];
+    const matches=terms.map(term=>{const at=body.indexOf(term);return {term,at,excerpt:at<0?'':body.slice(Math.max(0,at-150),at+550)}});
+    return {url,status:response.status,bytes:body.length,contentType:response.headers.get('content-type'),matches,head:body.slice(0,1100)};
+   }catch(e){return {url,error:String(e)}}
+  }));
+  return res.status(200).json({mode:'read-only',results});
+ }
  const entries=brand?[[brand,sources[brand]]]:Object.entries(sources);
  // Probe alternate official RISE hostnames in parallel; diagnostics only.
  if(brand==='RISE'&&req.query?.probe==='1'){
