@@ -90,6 +90,12 @@ export default async function handler(req,res){
    return res.status(200).json({mode:'read-only',code:'490600',requestMethod:'POST',httpStatus:response.status,elapsedMs:Date.now()-started,responseBytes:body.length,responseExcerpt:body.slice(0,2400),note:'Diagnostic only. No dividend data written.'});
   }catch(e){return res.status(200).json({mode:'read-only',code:'490600',elapsedMs:Date.now()-started,error:String(e?.message||e),note:'No dividend data written.'})}
  }
+ if(brand==='RISE'&&req.query?.schema==='1'){
+  const xml=await (await fetch('https://seibro.or.kr/IPORTAL/user/etf/BIP_CNTS06030V.xml',{signal:AbortSignal.timeout(8000)})).text();
+  const terms=['<request','<reqParam','<service','function callTask','function callTask(','<xf:instance','<task','<action'];
+  const found=terms.map(term=>{const at=xml.indexOf(term);return {term,at,context:at<0?'':xml.slice(Math.max(0,at-350),at+2000)}});
+  return res.status(200).json({mode:'read-only',found});
+ }
  const entries=brand?[[brand,sources[brand]]]:Object.entries(sources);
  // Probe alternate official RISE hostnames in parallel; diagnostics only.
  if(brand==='RISE'&&req.query?.probe==='1'){
