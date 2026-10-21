@@ -136,6 +136,19 @@ export default async function handler(req,res){
   }));
   return res.status(200).json({mode:'read-only',results});
  }
+ if(brand==='RISE'&&req.query?.businessjs==='1'){
+  const paths=['/IPORTAL/user/etf/BIP_CNTS06030V.xml','/websquare/config.xml','/IPORTAL/common/common.js','/IPORTAL/js/common.js'];
+  const results=await Promise.all(paths.map(async path=>{
+   try{
+    const response=await fetch('https://seibro.or.kr'+path,{signal:AbortSignal.timeout(8000),headers:{'User-Agent':'Mozilla/5.0'}});
+    const body=await response.text();
+    const patterns=[/[\w./-]+\.js(?:\?[\w=&.-]+)?/g,/[\w./-]+\.xml(?:\?[\w=&.-]+)?/g,/\b(?:import|requires|include|callTask)\s*\(/g];
+    const references=patterns.flatMap(re=>[...body.matchAll(re)].slice(0,35).map(m=>({at:m.index,value:m[0],context:body.slice(Math.max(0,m.index-110),m.index+180)}))).slice(0,75);
+    return {path,status:response.status,bytes:body.length,references};
+   }catch(e){return {path,error:String(e)}}
+  }));
+  return res.status(200).json({mode:'read-only',results});
+ }
  const entries=brand?[[brand,sources[brand]]]:Object.entries(sources);
  // Probe alternate official RISE hostnames in parallel; diagnostics only.
  if(brand==='RISE'&&req.query?.probe==='1'){
