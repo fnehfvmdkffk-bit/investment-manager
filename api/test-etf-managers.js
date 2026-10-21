@@ -4,7 +4,7 @@ const sources={
  ACE:'https://www.aceetf.co.kr/',
  SOL:'https://www.soletf.co.kr/ko/fund/etf/211097?tabIndex=2',
  KODEX:'https://www.samsungfund.com/etf/main.do',
- RISE:'https://www.riseetf.co.kr/prod/finderDetail/4454?searchFlag=viewtab1',
+ RISE:'https://riseetf.co.kr/prod/finderDetail/4454?searchFlag=viewtab3',
  PLUS:'https://www.plusetf.co.kr/'
 };
 export default async function handler(req,res){
@@ -19,7 +19,7 @@ export default async function handler(req,res){
    const response=await fetch(url,{signal:AbortSignal.timeout(9000),redirect:'follow',headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html,application/xhtml+xml','Accept-Language':'ko-KR,ko;q=0.9'}});
    const html=await response.text();
    const plain=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
-   return {brand:name,url,status:response.status,ok:response.ok,elapsedMs:Date.now()-started,htmlBytes:Buffer.byteLength(html),hasDividendKeyword:/분배금|배당금/.test(plain),tableCount:(html.match(/<table\b/gi)||[]).length,verifiedDividendRecords:0,note:'연결 테스트만 완료. 종목별 공식 분배금 추출은 미검증'};
+   return {brand:name,url,status:response.status,ok:response.ok,elapsedMs:Date.now()-started,htmlBytes:Buffer.byteLength(html),hasDividendKeyword:/분배금|배당금/.test(plain),tableCount:(html.match(/<table\b/gi)||[]).length,verifiedDividendRecords:0,dividendExcerpt:(()=>{const p=plain.indexOf('분배금 지급현황');return p<0?'':plain.slice(p,p+650)})(),note:'접속 및 본문 검사. 분배금 추출 미검증'};
   }catch(e){return {brand:name,url,ok:false,elapsedMs:Date.now()-started,error:e?.name||'fetch_error',message:String(e?.message||e).slice(0,120)}}
  }));
  return res.status(200).json({checkedAt:new Date().toISOString(),mode:'read-only',results});
