@@ -287,17 +287,17 @@ async function refreshAllDividends(rebuild=false){
     for(const x of (Array.isArray(d.records)?d.records:[])){
      const unit=Number(x.unit),recordDate=String(x.recordDate||''),payDate=String(x.payDate||'');
      if(!(unit>0)||(!recordDate&&!payDate))continue;
-     const identity=[a,h['상품명'],recordDate||payDate,unit].join('|');
+     const identity=[a,holdingNameKey(h['상품명']),recordDate||payDate].join('|');
      if(seen.has(identity))continue;seen.add(identity);
      const existsBase=(DATA[a].rows||[]).some(z=>String(z['상품명']||'')===String(h['상품명'])&&Number(z['배당단가']||0)===unit&&(payDate&&String(z['지급일']||'')===payDate||recordDate&&String(z['기준일']||'')===recordDate));
      if(existsBase)continue;
-     const old=USER_DIVS.find(z=>z.account===a&&holdingNameKey(z.product)===holdingNameKey(h['상품명'])&&((recordDate&&(z.recordDate===recordDate||z.baseDate===recordDate))||(payDate&&z.payDate===payDate)));
+     const baseDate=recordDate?prevTradingDay(prevTradingDay(recordDate)):payDate;
+     const old=USER_DIVS.find(z=>z.account===a&&holdingNameKey(z.product)===holdingNameKey(h['상품명'])&&((recordDate&&(z.recordDate===recordDate||z.baseDate===recordDate||z.baseDate===baseDate))||(payDate&&z.payDate===payDate)));
      if(old){
       if(old.source==='auto'&&Number(old.unit)!==unit){old.unit=unit;updated++}
       if(old.source==='auto'&&payDate&&old.payDate!==payDate){old.payDate=payDate;updated++}
       continue;
      }
-     const baseDate=recordDate?prevTradingDay(prevTradingDay(recordDate)):payDate;
      const hs=holdingStateAtDate(a,h['상품명'],baseDate);
      if(!(hs.qty>0))continue;
      USER_DIVS.push({id:Date.now()+added,account:a,baseDate,payDate,recordDate,product:h['상품명'],unit,qty:hs.qty,avgPrice:hs.avgPrice,source:'auto',status:payDate?'scheduled':'announced'});added++;
@@ -305,14 +305,17 @@ async function refreshAllDividends(rebuild=false){
    }catch(e){failed++;failedItems.push(a+' · '+h['상품명']+' (연결 오류)')}
   }
  }
- // Dedupe without discarding manually entered entries.
+ // Match distributions by account, normalized product and event date, not by unit amount.
+ // An official correction must update a record rather than create a second dividend.
  const uniq=new Map();
  for(const d of USER_DIVS){
-  const k=[d.account,d.product,d.recordDate||d.payDate||d.baseDate,d.unit].join('|');
+  const eventDate=d.recordDate||d.payDate||d.baseDate;
+  const k=[d.account,holdingNameKey(d.product),eventDate].join('|');
   const prior=uniq.get(k);
   if(!prior||prior.source==='auto'&&d.source!=='auto')uniq.set(k,d);
   else if(prior.source==='auto'&&d.source==='auto'&&!prior.payDate&&d.payDate)uniq.set(k,d);
  }
+
  USER_DIVS=[...uniq.values()];
  localStorage.setItem(DIV_STORE_KEY,JSON.stringify(USER_DIVS));
  await saveServerState();render();
