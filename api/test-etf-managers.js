@@ -57,6 +57,18 @@ export default async function handler(req,res){
   }));
   return res.status(200).json({mode:'read-only',results});
  }
+ if(brand==='RISE'&&req.query?.service==='1'){
+  const url='https://seibro.or.kr/IPORTAL/user/etf/BIP_CNTS06030V.xml';
+  try{
+   const response=await fetch(url,{signal:AbortSignal.timeout(10000),headers:{'User-Agent':'Mozilla/5.0','Accept':'application/xml,text/xml,*/*'}});
+   const xml=await response.text();
+   const terms=['submission_exerInfoDtramtPayStatPlist','EtfExerInfoPTask','callServletService.jsp','exerInfoDtramtPayStat'];
+   const matches=terms.map(term=>{const p=xml.indexOf(term);return {term,found:p>=0,context:p<0?'':xml.slice(Math.max(0,p-1100),Math.min(xml.length,p+2600))}});
+   const submissions=[...xml.matchAll(/<[^>]*submission\b[^>]*>/gi)].map(m=>m[0]).filter(v=>/exer|dtramt|pay|etf/i.test(v)).slice(0,15);
+   const datasets=[...xml.matchAll(/<[^>]*(?:dataList|dataMap|column)\b[^>]*>/gi)].map(m=>m[0]).filter(v=>/exer|dtramt|pay|etf|isin|shot/i.test(v)).slice(0,45);
+   return res.status(200).json({mode:'read-only',url,status:response.status,bytes:xml.length,matches,submissions,datasets});
+  }catch(e){return res.status(200).json({mode:'read-only',error:String(e)})}
+ }
  const entries=brand?[[brand,sources[brand]]]:Object.entries(sources);
  // Probe alternate official RISE hostnames in parallel; diagnostics only.
  if(brand==='RISE'&&req.query?.probe==='1'){
