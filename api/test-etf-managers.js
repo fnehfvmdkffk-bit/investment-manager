@@ -1,0 +1,26 @@
+// Read-only connectivity and data-format diagnostics for ETF managers.
+// No holdings, dividends, or server state are modified.
+const sources={
+ ACE:'https://www.aceetf.co.kr/',
+ SOL:'https://www.soletf.com/ko/',
+ KODEX:'https://www.samsungfund.com/etf/main.do',
+ RISE:'https://www.riseetf.co.kr/',
+ PLUS:'https://www.plusetf.co.kr/'
+};
+export default async function handler(req,res){
+ res.setHeader('Cache-Control','no-store');
+ if(req.method!=='GET')return res.status(405).json({error:'method_not_allowed'});
+ const brand=String(req.query?.brand||'').toUpperCase();
+ if(brand&&!sources[brand])return res.status(400).json({error:'unsupported_brand'});
+ const entries=brand?[[brand,sources[brand]]]:Object.entries(sources);
+ const results=await Promise.all(entries.map(async ([name,url])=>{
+  const started=Date.now();
+  try{
+   const response=await fetch(url,{signal:AbortSignal.timeout(9000),redirect:'follow',headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html,application/xhtml+xml','Accept-Language':'ko-KR,ko;q=0.9'}});
+   const html=await response.text();
+   const plain=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
+   return {brand:name,url,status:response.status,ok:response.ok,elapsedMs:Date.now()-started,htmlBytes:Buffer.byteLength(html),hasDividendKeyword:/분배금|배당금/.test(plain),tableCount:(html.match(/<table\b/gi)||[]).length,verifiedDividendRecords:0,note:'연결 테스트만 완료. 종목별 공식 분배금 추출은 미검증'};
+  }catch(e){return {brand:name,url,ok:false,elapsedMs:Date.now()-started,error:e?.name||'fetch_error',message:String(e?.message||e).slice(0,120)}}
+ }));
+ return res.status(200).json({checkedAt:new Date().toISOString(),mode:'read-only',results});
+}
