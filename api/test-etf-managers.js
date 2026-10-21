@@ -13,6 +13,18 @@ export default async function handler(req,res){
  const brand=String(req.query?.brand||'').toUpperCase();
  if(brand&&!sources[brand])return res.status(400).json({error:'unsupported_brand'});
  const entries=brand?[[brand,sources[brand]]]:Object.entries(sources);
+ // Probe alternate official RISE hostnames in parallel; diagnostics only.
+ if(brand==='RISE'&&req.query?.probe==='1'){
+  const urls=['https://kbam.co.kr/support/notice/842','https://www.kbam.co.kr/support/notice/842','https://www.riseetf.co.kr/','https://riseetf.co.kr/'];
+  const results=await Promise.all(urls.map(async url=>{
+   const started=Date.now();
+   try{const response=await fetch(url,{signal:AbortSignal.timeout(5000),redirect:'follow',headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html','Accept-Language':'ko-KR,ko;q=0.9'}});
+    const html=await response.text();
+    return {url,status:response.status,ok:response.ok,elapsedMs:Date.now()-started,bytes:html.length,hasDividendKeyword:/분배금|배당금/.test(html),tableCount:(html.match(/<table\\b/gi)||[]).length};
+   }catch(e){return {url,ok:false,elapsedMs:Date.now()-started,error:String(e?.name||e)}}
+  }));
+  return res.status(200).json({mode:'read-only',results});
+ }
  const results=await Promise.all(entries.map(async ([name,url])=>{
   const started=Date.now();
   try{
