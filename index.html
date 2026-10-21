@@ -149,6 +149,15 @@ function updateDividendProductSelect(){
 }
 function allDividendRows(account){
   const base=(DATA[account].rows||[]).map(r=>({...r,_user:false}));
+  // Correct the displayed record date for verified TIGER payout events.
+  // Do not mutate the original imported baseline or manually entered records.
+  const verifiedTigerDates={'2026-10-19':'2026-10-15','2026-09-17':'2026-09-15'};
+  for(const row of base){
+    if(!/^TIGER/i.test(String(row['상품명']||'')))continue;
+    const payment=String(row['지급일']||'');
+    const verified=verifiedTigerDates[payment];
+    if(verified&&String(row['기준일']||'')!==verified)row['기준일']=verified;
+  }
   const added=USER_DIVS.filter(d=>d.account===account).map(d=>({
     '상품명':d.product,'기준일':d.baseDate,'지급일':d.payDate,
     '배당단가':Number(d.unit)||0,'배당수량':Number(d.qty)||0,
