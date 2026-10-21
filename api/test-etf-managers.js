@@ -4,7 +4,7 @@ const sources={
  ACE:'https://www.aceetf.co.kr/',
  SOL:'https://www.soletf.co.kr/ko/fund/etf/211097?tabIndex=2',
  KODEX:'https://www.samsungfund.com/etf/main.do',
- RISE:'https://riseetf.co.kr/prod/finderDetail/4454?searchFlag=viewtab3',
+ RISE:'https://kbam.co.kr/support/notice/842',
  PLUS:'https://www.plusetf.co.kr/'
 };
 export default async function handler(req,res){
