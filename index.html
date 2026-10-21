@@ -155,7 +155,24 @@ function allDividendRows(account){
     '총 배당금액':(Number(d.unit)||0)*(Number(d.qty)||0),'평단가':d.avgPrice==null?null:Number(d.avgPrice),
     '_user':true,'_id':d.id
   }));
-  return base.concat(added);
+  // Hide duplicate legacy auto records without deleting saved dividend data.
+  // Older TIGER imports stored two trading days before the actual record date.
+  const result=[];
+  for(const item of base.concat(added)){
+    const name=holdingNameKey(item['상품명']);
+    const date=String(item['기준일']||'');
+    const pay=String(item['지급일']||'');
+    const unit=Number(item['배당단가'])||0;
+    const same=result.find(z=>holdingNameKey(z['상품명'])===name
+      && Number(z['배당단가'])===unit
+      && ((pay&&z['지급일']===pay)
+        || (date&&z['기준일']===date)
+        || (date&&z['기준일']===prevTradingDay(prevTradingDay(date)))
+        || (z['기준일']&&date===prevTradingDay(prevTradingDay(z['기준일'])))));
+    if(!same)result.push(item);
+    else if(!same['지급일']&&pay)same['지급일']=pay;
+  }
+  return result;
 }
 function addDividend(){
   const baseDate=document.getElementById('divBaseDate').value;
@@ -291,8 +308,8 @@ async function refreshAllDividends(rebuild=false){
      if(seen.has(identity))continue;seen.add(identity);
      const existsBase=(DATA[a].rows||[]).some(z=>String(z['상품명']||'')===String(h['상품명'])&&Number(z['배당단가']||0)===unit&&(payDate&&String(z['지급일']||'')===payDate||recordDate&&String(z['기준일']||'')===recordDate));
      if(existsBase)continue;
-     const baseDate=recordDate?prevTradingDay(prevTradingDay(recordDate)):payDate;
-     const old=USER_DIVS.find(z=>z.account===a&&holdingNameKey(z.product)===holdingNameKey(h['상품명'])&&((recordDate&&(z.recordDate===recordDate||z.baseDate===recordDate||z.baseDate===baseDate))||(payDate&&z.payDate===payDate)));
+     const baseDate=recordDate||payDate;
+     const old=USER_DIVS.find(z=>z.account===a&&holdingNameKey(z.product)===holdingNameKey(h['상품명'])&&((recordDate&&(z.recordDate===recordDate||z.baseDate===recordDate||z.baseDate===baseDate||z.baseDate===prevTradingDay(prevTradingDay(recordDate))))||(payDate&&z.payDate===payDate)));
      if(old){
       if(old.source==='auto'&&Number(old.unit)!==unit){old.unit=unit;updated++}
       if(old.source==='auto'&&payDate&&old.payDate!==payDate){old.payDate=payDate;updated++}
