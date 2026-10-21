@@ -174,6 +174,16 @@ export default async function handler(req,res){
   }));
   return res.status(200).json({mode:'read-only',results});
  }
+ if(brand==='RISE'&&req.query?.securityflow==='1'){
+  const url='https://seibro.or.kr/IPORTAL/common/js/xecureHandler.js';
+  try{
+   const response=await fetch(url,{signal:AbortSignal.timeout(9000)});
+   const body=await response.text();
+   const terms=['function getReqData','function BlockEncEx_callback','function userHandlercallback','function xecureHandler','function BlockEncEx','BlockEncEx(reqData'];
+   const matches=terms.map(term=>{const at=body.indexOf(term);return {term,at,context:at<0?'':body.slice(at,Math.min(body.length,at+4200))}});
+   return res.status(200).json({mode:'read-only',status:response.status,bytes:body.length,matches});
+  }catch(e){return res.status(200).json({mode:'read-only',error:String(e)})}
+ }
  const entries=brand?[[brand,sources[brand]]]:Object.entries(sources);
  // Probe alternate official RISE hostnames in parallel; diagnostics only.
  if(brand==='RISE'&&req.query?.probe==='1'){
