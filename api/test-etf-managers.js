@@ -47,6 +47,16 @@ export default async function handler(req,res){
   }));
   return res.status(200).json({mode:'read-only',results});
  }
+ if(brand==='RISE'&&req.query?.xml==='1'){
+  const urls=['https://seibro.or.kr/IPORTAL/user/etf/BIP_CNTS06030V.xml','https://seibro.or.kr/websquare/IPORTAL/user/etf/BIP_CNTS06030V.xml','https://seibro.or.kr/websquare/javascript.wq?q=/bootloader'];
+  const results=await Promise.all(urls.map(async url=>{
+   try{const response=await fetch(url,{signal:AbortSignal.timeout(8000),headers:{'User-Agent':'Mozilla/5.0','Accept':'application/xml,text/xml,text/javascript,*/*'}});
+    const body=await response.text();const hits=[...body.matchAll(/(?:action|url|submission|service|etf|분배금)[^\r\n<>]{0,180}/gi)].slice(0,30).map(x=>x[0]);
+    return {url,status:response.status,bytes:body.length,excerpt:body.slice(0,900),hits};
+   }catch(e){return {url,error:String(e)}}
+  }));
+  return res.status(200).json({mode:'read-only',results});
+ }
  const entries=brand?[[brand,sources[brand]]]:Object.entries(sources);
  // Probe alternate official RISE hostnames in parallel; diagnostics only.
  if(brand==='RISE'&&req.query?.probe==='1'){
