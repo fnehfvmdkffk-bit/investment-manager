@@ -96,6 +96,19 @@ export default async function handler(req,res){
   const found=terms.map(term=>{const at=xml.indexOf(term);return {term,at,context:at<0?'':xml.slice(Math.max(0,at-350),at+2000)}});
   return res.status(200).json({mode:'read-only',found});
  }
+ if(brand==='RISE'&&req.query?.tasksource==='1'){
+  const base='https://seibro.or.kr';
+  const urls=['/IPORTAL/user/etf/BIP_CNTS06030V.xml','/IPORTAL/js/common.js','/IPORTAL/js/commonUtil.js','/websquare/engine/proworks/callServletService.jsp'];
+  const results=await Promise.all(urls.map(async path=>{
+   try{
+    const response=await fetch(base+path,{signal:AbortSignal.timeout(9000),headers:{'User-Agent':'Mozilla/5.0'}});
+    const body=await response.text();
+    const matches=[...body.matchAll(/(?:callTask|EtfExerInfoPTask|reqParam|serviceName|serviceId|taskName|processName|proworks)/gi)].slice(0,12).map(m=>body.slice(Math.max(0,m.index-170),m.index+430));
+    return {path,status:response.status,bytes:body.length,scriptPaths:path.endsWith('.xml')?[...body.matchAll(/(?:src|href)=["']([^"']+\.js[^"']*)/gi)].map(m=>m[1]).slice(0,30):[],matches};
+   }catch(e){return {path,error:String(e)}}
+  }));
+  return res.status(200).json({mode:'read-only',results});
+ }
  const entries=brand?[[brand,sources[brand]]]:Object.entries(sources);
  // Probe alternate official RISE hostnames in parallel; diagnostics only.
  if(brand==='RISE'&&req.query?.probe==='1'){
