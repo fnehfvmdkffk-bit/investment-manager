@@ -281,7 +281,7 @@ async function refreshAllDividends(rebuild=false){
   for(const h of calculatedHoldings(a).filter(h=>(Number(h['수량'])||0)>0)){
    checked++;
    try{
-    const r=await fetch('/api/dividend?name='+encodeURIComponent(h['상품명']),{cache:'no-store'});
+    const r=await fetch('/api/dividend?name='+encodeURIComponent(h['상품명'])+'&code='+encodeURIComponent(holdingStockCode(h['상품명'])==='-'?'':holdingStockCode(h['상품명'])),{cache:'no-store'});
     if(!r.ok){failed++;failedItems.push(a+' · '+h['상품명']+' (HTTP '+r.status+')');continue}
     const d=await r.json();
     for(const x of (Array.isArray(d.records)?d.records:[])){
@@ -291,8 +291,9 @@ async function refreshAllDividends(rebuild=false){
      if(seen.has(identity))continue;seen.add(identity);
      const existsBase=(DATA[a].rows||[]).some(z=>String(z['상품명']||'')===String(h['상품명'])&&Number(z['배당단가']||0)===unit&&(payDate&&String(z['지급일']||'')===payDate||recordDate&&String(z['기준일']||'')===recordDate));
      if(existsBase)continue;
-     const old=USER_DIVS.find(z=>z.account===a&&z.product===h['상품명']&&Number(z.unit)===unit&&((recordDate&&z.recordDate===recordDate)||(payDate&&z.payDate===payDate)));
+     const old=USER_DIVS.find(z=>z.account===a&&holdingNameKey(z.product)===holdingNameKey(h['상품명'])&&((recordDate&&(z.recordDate===recordDate||z.baseDate===recordDate))||(payDate&&z.payDate===payDate)));
      if(old){
+      if(old.source==='auto'&&Number(old.unit)!==unit){old.unit=unit;updated++}
       if(old.source==='auto'&&payDate&&old.payDate!==payDate){old.payDate=payDate;updated++}
       continue;
      }
