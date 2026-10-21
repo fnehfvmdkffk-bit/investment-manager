@@ -69,6 +69,17 @@ export default async function handler(req,res){
    return res.status(200).json({mode:'read-only',url,status:response.status,bytes:xml.length,matches,submissions,datasets});
   }catch(e){return res.status(200).json({mode:'read-only',error:String(e)})}
  }
+ if(brand==='RISE'&&req.query?.post==='1'){
+  const url='https://seibro.or.kr/IPORTAL/user/etf/BIP_CNTS06030V.xml';
+  try{
+   const xml=await (await fetch(url,{signal:AbortSignal.timeout(8000)})).text();
+   const blocks=[...xml.matchAll(/<[^>]*(?:reqParam|request|service|task|START_PAGE|fromRGT_STD_DT|isin)[^>]*>/gi)].map(m=>({at:m.index,tag:m[0]})).slice(0,65);
+   const task=xml.indexOf("function callTask(");
+   const taskContext=task>=0?xml.slice(task,task+1600):'';
+   const ids=[...xml.matchAll(/(?:setInstanceValue|setValue)\s*\(\s*['"]([^'"]+)['"]/g)].map(m=>m[1]).filter(v=>/reqParam|service|task/.test(v)).slice(0,35);
+   return res.status(200).json({mode:'read-only',blocks,taskContext,ids});
+  }catch(e){return res.status(200).json({error:String(e)})}
+ }
  const entries=brand?[[brand,sources[brand]]]:Object.entries(sources);
  // Probe alternate official RISE hostnames in parallel; diagnostics only.
  if(brand==='RISE'&&req.query?.probe==='1'){
