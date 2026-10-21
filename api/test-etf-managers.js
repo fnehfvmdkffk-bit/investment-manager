@@ -149,6 +149,18 @@ export default async function handler(req,res){
   }));
   return res.status(200).json({mode:'read-only',results});
  }
+ if(brand==='RISE'&&req.query?.shared==='1'){
+  const paths=['/IPORTAL/common/js/xecureHandler.js','/IPORTAL/user/common/wframe/common/top.xml','/IPORTAL/user/common/wframe/common/side.xml','/IPORTAL/user/common/wframe/common/location.xml','/IPORTAL/user/common/wframe/common/bottom.xml'];
+  const results=await Promise.all(paths.map(async path=>{
+   try{
+    const response=await fetch('https://seibro.or.kr'+path,{signal:AbortSignal.timeout(7500)});
+    const body=await response.text();
+    const matches=[...body.matchAll(/callTask|function\s+\w+Task|\.js(?:\?[^"' <]*)?|<w2:wframe[^>]+src=["'][^"']+/gi)].slice(0,18).map(m=>body.slice(Math.max(0,m.index-130),m.index+500));
+    return {path,status:response.status,bytes:body.length,matches};
+   }catch(e){return {path,error:String(e)}}
+  }));
+  return res.status(200).json({mode:'read-only',results});
+ }
  const entries=brand?[[brand,sources[brand]]]:Object.entries(sources);
  // Probe alternate official RISE hostnames in parallel; diagnostics only.
  if(brand==='RISE'&&req.query?.probe==='1'){
