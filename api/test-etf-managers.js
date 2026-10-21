@@ -12,6 +12,22 @@ export default async function handler(req,res){
  if(req.method!=='GET')return res.status(405).json({error:'method_not_allowed'});
  const brand=String(req.query?.brand||'').toUpperCase();
  if(brand&&!sources[brand])return res.status(400).json({error:'unsupported_brand'});
+ if(brand==='RISE'&&req.query?.kind==='1'){
+  const urls=['https://kind.krx.co.kr/external/2026/08/12/000283/20260812000768/68659.htm','https://kind.krx.co.kr/external/2026/09/28/000183/20260928000552/68659.htm'];
+  const results=await Promise.all(urls.map(async url=>{
+   const started=Date.now();
+   try{const response=await fetch(url,{signal:AbortSignal.timeout(7000),headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html'}});
+    const html=await response.text();
+    const rows=[];
+    for(const tr of html.match(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)||[]){
+     const cells=[...tr.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(m=>m[1].replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim());
+     if(cells.some(v=>/RISE/.test(v)))rows.push(cells);
+    }
+    return {url,status:response.status,ok:response.ok,elapsedMs:Date.now()-started,bytes:html.length,rows:rows.slice(0,12)};
+   }catch(e){return {url,ok:false,elapsedMs:Date.now()-started,error:String(e?.name||e)}}
+  }));
+  return res.status(200).json({mode:'read-only',source:'KRX KIND official disclosures',results});
+ }
  const entries=brand?[[brand,sources[brand]]]:Object.entries(sources);
  // Probe alternate official RISE hostnames in parallel; diagnostics only.
  if(brand==='RISE'&&req.query?.probe==='1'){
