@@ -67,7 +67,8 @@ export default async function handler(req,res){
  res.setHeader('Cache-Control','no-store');const name=String(req.query?.name||'').trim();if(!name)return res.status(400).json({error:'name'});
  try{
   const explicitCode=String(req.query?.code||'').trim().toUpperCase();const code=/^[0-9A-Z]{6}$/.test(explicitCode)?explicitCode:await lookupCode(name);if(!code)return res.status(404).json({error:'ticker_not_found'});
-  if(/^TIGER/i.test(name)){try{const official=await tigerNotice(code);if(official.length)return res.status(200).json({name,code,records:official,source:'TIGER official notice',tax:'pre-tax'});}catch(e){}}\n  const r=await fetch('https://etfcal.com/etfs/kr/'+encodeURIComponent(code),{headers:{'User-Agent':'Mozilla/5.0'}});if(!r.ok)throw 0;
+  if(/^TIGER/i.test(name)){try{const official=await tigerNotice(code);if(official.length)return res.status(200).json({name,code,records:official,source:'TIGER official notice',tax:'pre-tax'});}catch(e){}}
+  const r=await fetch('https://etfcal.com/etfs/kr/'+encodeURIComponent(code),{headers:{'User-Agent':'Mozilla/5.0'}});if(!r.ok)throw 0;
   const text=clean(await r.text()),records=[];const re=/(20\d{2}-\d{2}-\d{2})\s+(20\d{2}-\d{2}-\d{2})\s+([\d,]+(?:\.\d+)?)원/g;let m;
   while((m=re.exec(text))){const payDate=m[1],recordDate=m[2],unit=Number(m[3].replace(/,/g,''));if(payDate>='2026-09-01')records.push({payDate,recordDate,unit})}
   return res.status(200).json({name,code,records,source:'ETFcal/KRX',tax:'pre-tax'});
