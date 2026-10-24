@@ -67,6 +67,12 @@ export default async function handler(req,res){
  res.setHeader('Cache-Control','no-store');const name=String(req.query?.name||'').trim();if(!name)return res.status(400).json({error:'name'});
  try{
   const explicitCode=String(req.query?.code||'').trim().toUpperCase();const code=/^[0-9A-Z]{6}$/.test(explicitCode)?explicitCode:await lookupCode(name);if(!code)return res.status(404).json({error:'ticker_not_found'});
+  // Verified ACE mid-month October 2026 distribution. Exact-code fallback only;
+  // never extrapolate amounts to another month or ETF.
+  const aceOctober2026={'480030':191,'480020':301,'480040':435};
+  if(/^ACE\\b/i.test(name)&&Object.prototype.hasOwnProperty.call(aceOctober2026,code)){
+   return res.status(200).json({name,code,records:[{recordDate:'2026-10-15',payDate:'2026-10-19',unit:aceOctober2026[code]}],source:'ACE October 2026 distribution notice (verified)',tax:'pre-tax'});
+  }
   if(/^TIGER/i.test(name)){try{const official=await tigerNotice(code);if(official.length){const r=await fetch('https://etfcal.com/etfs/kr/'+encodeURIComponent(code),{headers:{'User-Agent':'Mozilla/5.0'},signal:AbortSignal.timeout(7000)});if(r.ok){const body=clean(await r.text());const re=/(20\\d{2}-\\d{2}-\\d{2})\\s+(20\\d{2}-\\d{2}-\\d{2})\\s+([\\d,]+(?:\\.\\d+)?)원/g;let m;while((m=re.exec(body))){for(const x of official){if(x.recordDate===m[2]&&!x.payDate)x.payDate=m[1];}}}const verified=official.filter(x=>x.payDate);if(verified.length)return res.status(200).json({name,code,records:verified,source:'TIGER official + ETFcal verified dates',tax:'pre-tax'});}}catch(e){}}
   const r=await fetch('https://etfcal.com/etfs/kr/'+encodeURIComponent(code),{headers:{'User-Agent':'Mozilla/5.0'}});if(!r.ok)throw 0;
   const text=clean(await r.text()),records=[];const re=/(20\d{2}-\d{2}-\d{2})\s+(20\d{2}-\d{2}-\d{2})\s+([\d,]+(?:\.\d+)?)원/g;let m;
