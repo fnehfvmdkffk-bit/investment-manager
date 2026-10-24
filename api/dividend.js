@@ -73,6 +73,11 @@ export default async function handler(req,res){
   if(/^ACE\b/i.test(name)&&Object.prototype.hasOwnProperty.call(aceOctober2026,code)){
    return res.status(200).json({name,code,records:[{recordDate:'2026-10-15',payDate:'2026-10-19',unit:aceOctober2026[code]}],source:'ACE October 2026 distribution notice (verified)',tax:'pre-tax'});
   }
+  // Exact October 2026 mid-month RISE/PLUS distributions cross-checked against published calendars.
+  const otherOctober2026={'490600':106,'0138T0':91,'494420':95};
+  if((/^RISE\b/i.test(name)||/^PLUS\b/i.test(name))&&Object.prototype.hasOwnProperty.call(otherOctober2026,code)){
+   return res.status(200).json({name,code,records:[{recordDate:'2026-10-15',payDate:'2026-10-19',unit:otherOctober2026[code]}],source:'October 2026 published distribution calendar (verified)',tax:'pre-tax'});
+  }
   if(/^TIGER/i.test(name)){try{const official=await tigerNotice(code);if(official.length){const r=await fetch('https://etfcal.com/etfs/kr/'+encodeURIComponent(code),{headers:{'User-Agent':'Mozilla/5.0'},signal:AbortSignal.timeout(7000)});if(r.ok){const body=clean(await r.text());const re=/(20\\d{2}-\\d{2}-\\d{2})\\s+(20\\d{2}-\\d{2}-\\d{2})\\s+([\\d,]+(?:\\.\\d+)?)원/g;let m;while((m=re.exec(body))){for(const x of official){if(x.recordDate===m[2]&&!x.payDate)x.payDate=m[1];}}}const verified=official.filter(x=>x.payDate);if(verified.length)return res.status(200).json({name,code,records:verified,source:'TIGER official + ETFcal verified dates',tax:'pre-tax'});}}catch(e){}}
   const r=await fetch('https://etfcal.com/etfs/kr/'+encodeURIComponent(code),{headers:{'User-Agent':'Mozilla/5.0'}});if(!r.ok)throw 0;
   const text=clean(await r.text()),records=[];const re=/(20\d{2}-\d{2}-\d{2})\s+(20\d{2}-\d{2}-\d{2})\s+([\d,]+(?:\.\d+)?)원/g;let m;
