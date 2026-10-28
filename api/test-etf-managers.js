@@ -18,6 +18,10 @@ export default async function handler(req,res){
   return res.status(200).json({status:r.status,bytes:html.length,plain:plain.slice(0,20000),tables});
   }catch(e){return res.status(502).json({error:String(e)})}
  }
+ if(req.query?.notices==='1'){
+  const urls=['https://www.aceetf.co.kr/cs/notice/7222','https://kbam.co.kr/support/notice/846'];
+  const results=await Promise.all(urls.map(async url=>{try{const response=await fetch(url,{signal:AbortSignal.timeout(12000),headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html'}});const html=await response.text();const plain=html.replace(/<script\\b[^>]*>[\\s\\S]*?<\\/script>/gi,' ').replace(/<style\\b[^>]*>[\\s\\S]*?<\\/style>/gi,' ').replace(/<[^>]*>/g,' ').replace(/&nbsp;/g,' ').replace(/\\s+/g,' ').trim();return {url,status:response.status,bytes:html.length,plain:plain.slice(0,25000)}}catch(e){return {url,error:String(e)}}}));return res.status(200).json({mode:'read-only',results});
+ }
  const brand=String(req.query?.brand||'').toUpperCase();
  if(brand&&!sources[brand])return res.status(400).json({error:'unsupported_brand'});
  if(brand==='RISE'&&req.query?.kind==='1'){
