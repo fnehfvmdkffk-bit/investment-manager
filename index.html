@@ -20,7 +20,7 @@
 <div class="field product"><label>종목</label><select id="tradeProduct" onchange="syncCodeInputs()"></select></div><div class="field"><label>종목코드 직접입력</label><input id="tradeStockCode" maxlength="6" placeholder="6자리 코드" onchange="resolveEnteredCode('trade')"></div>
 <div class="field"><label>수량</label><input type="number" id="tradeQty" min="0.000001" step="any" placeholder="수량"></div>
 <div class="field"><label>단가</label><input type="number" id="tradePrice" min="0" step="any" placeholder="매매단가"></div>
-<button class="primary" onclick="addTrade()">거래 반영</button><button class="primary" onclick="importOct19Trades()">10/19 매수 5건 반영</button></div>
+<button class="primary" onclick="addTrade()">거래 반영</button></div>
 <div class="note">매수는 가중평균으로 평단가가 변경됩니다. 매도는 기존 평단가를 유지하며 수량과 매수금액이 감소합니다. 입력 거래는 이 브라우저에 저장됩니다.</div>
 <div class="trade-history">
 <details>
