@@ -10,6 +10,14 @@ const sources={
 export default async function handler(req,res){
  res.setHeader('Cache-Control','no-store');
  if(req.method!=='GET')return res.status(405).json({error:'method_not_allowed'});
+ if(req.query?.tiger773==='1'){
+  try{const u='https://investments.miraeasset.com/tigeretf/ko/customer/notice/view.do?listCnt=10&pageIndex=1&detailsKey=773&q=';
+  const r=await fetch(u,{headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html','Accept-Language':'ko-KR,ko;q=0.9'},signal:AbortSignal.timeout(12000)});
+  const html=await r.text();const plain=html.replace(/<script\\b[^>]*>[\\s\\S]*?<\\/script>/gi,' ').replace(/<style\\b[^>]*>[\\s\\S]*?<\\/style>/gi,' ').replace(/<[^>]*>/g,' ').replace(/&nbsp;/g,' ').replace(/\\s+/g,' ').trim();
+  const tables=(html.match(/<table\\b[^>]*>[\\s\\S]*?<\\/table>/gi)||[]).map(t=>t.replace(/<[^>]*>/g,' ').replace(/\\s+/g,' ').slice(0,14000));
+  return res.status(200).json({status:r.status,bytes:html.length,plain:plain.slice(0,20000),tables});
+  }catch(e){return res.status(502).json({error:String(e)})}
+ }
  const brand=String(req.query?.brand||'').toUpperCase();
  if(brand&&!sources[brand])return res.status(400).json({error:'unsupported_brand'});
  if(brand==='RISE'&&req.query?.kind==='1'){
