@@ -326,6 +326,7 @@ async function refreshAllDividends(rebuild=false){
      const body=await r.json();if(!Array.isArray(body.records)||!body.records.length)throw Error('확인된 분배금 없음');return body;
     })());
     const d=await responses.get(requestKey);
+    if(d.records.some(x=>x.status==='dates_pending')){failed++;failedItems.push(a+' · '+h['상품명']+' (공식 분배금 확인 · 기준일/지급일 대조 필요)')}
     for(const x of (Array.isArray(d.records)?d.records:[])){
      const unit=Number(x.unit),recordDate=String(x.recordDate||''),payDate=String(x.payDate||'');
      if(!Number.isFinite(unit)||!(unit>0)||!/^\d{4}-\d{2}-\d{2}$/.test(recordDate)||!/^\d{4}-\d{2}-\d{2}$/.test(payDate)||payDate<recordDate||new Date(recordDate+'T00:00:00Z').toISOString().slice(0,10)!==recordDate||new Date(payDate+'T00:00:00Z').toISOString().slice(0,10)!==payDate)continue;

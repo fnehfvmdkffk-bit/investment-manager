@@ -86,12 +86,13 @@ export async function aceNotice(code,calendar){
     const i=cells.indexOf(code);if(i<0)continue;
     const unit=Number((cells[i+1]||'').replace(/[,원\s]/g,''));
     if(!(unit>0&&Number.isFinite(unit)))continue;
-    for(const row of calendar.filter(x=>x.recordDate.startsWith(month)&&x.unit===unit))out.push({...row,noticeId:notice.id,sourceUrl:'https://www.aceetf.co.kr/cs/notice/'+notice.id,amountSource:'ACE official notice',dateSource:'ETFcal'});
+    const matching=calendar.filter(x=>x.recordDate.startsWith(month)&&x.unit===unit);
+    for(const row of matching.length?matching:[{recordDate:'',payDate:'',unit,period:month,status:'dates_pending'}])out.push({...row,noticeId:notice.id,sourceUrl:'https://www.aceetf.co.kr/cs/notice/'+notice.id,amountSource:'ACE official notice',dateSource:matching.length?'ETFcal':null});
    }
    return out;
   }catch{return []}
  }));
- return [...new Map(results.flat().map(x=>[x.recordDate,x])).values()];
+ return [...new Map(results.flat().map(x=>[x.recordDate||x.period,x])).values()];
 }
 export default async function handler(req,res){
  res.setHeader('Cache-Control','no-store');if(req.method!=='GET')return res.status(405).json({error:'method_not_allowed'});const name=String(req.query?.name||'').trim();if(!name)return res.status(400).json({error:'name'});
@@ -102,7 +103,7 @@ export default async function handler(req,res){
   const text=clean(await r.text()),records=[];const re=/(20\d{2}-\d{2}-\d{2})\s+(20\d{2}-\d{2}-\d{2})\s+([\d,]+(?:\.\d+)?)원/g;let m;
   while((m=re.exec(text))){const payDate=m[1],recordDate=m[2],unit=Number(m[3].replace(/,/g,''));if(payDate>='2026-09-01')records.push({payDate,recordDate,unit})}
   if(/^ACE\b/i.test(name)){
-   try{const official=await aceNotice(code,records);if(official.length)return res.status(200).json({name,code,records:official,source:'ACE official amounts + ETFcal dates',tax:'pre-tax'});}catch{}
+   try{const official=await aceNotice(code,records);if(official.length)return res.status(200).json({name,code,records:official,source:'ACE official amounts; payment dates require verification',tax:'pre-tax'});}catch{}
   }
   return res.status(200).json({name,code,records,source:'ETFcal (third-party calendar)',officialVerified:false,tax:'pre-tax'});
  }catch(e){return res.status(502).json({error:'source_unavailable'})}
