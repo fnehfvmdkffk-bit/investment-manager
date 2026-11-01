@@ -14,7 +14,7 @@ async function lookupCode(name){
  const queries=[String(name).replace(/타켓/g,'타겟'),String(name)];
  for(const query of [...new Set(queries)]){
   try{
-   const s=await fetch('https://m.stock.naver.com/front-api/search/autoComplete?query='+encodeURIComponent(query)+'&target=stock,index,marketindicator,coin,ipo',{headers:{'User-Agent':'Mozilla/5.0'}});
+   const s=await fetch('https://m.stock.naver.com/front-api/search/autoComplete?query='+encodeURIComponent(query)+'&target=stock,index,marketindicator,coin,ipo',{headers:{'User-Agent':'Mozilla/5.0'},signal:AbortSignal.timeout(9000)});
    if(!s.ok)continue;
    const j=await s.json(),items=j?.result?.items||j?.items||[];
    const x=items.find(v=>norm(v.name)===key)||items.find(v=>norm(v.name).includes(key)||key.includes(norm(v.name)));
@@ -56,32 +56,54 @@ async function tigerNotice(code){
      const i=cells.findIndex(v=>v===code);
      if(i<0)continue;
      const unit=Number((cells[i+2]||'').replace(/[,원\s]/g,''));
-     if(unit>0&&unit<100000)records.push({recordDate,payDate:'',unit,noticeId:id,source:'TIGER official notice'});
+     if(unit>0&&unit<100000)records.push({recordDate,payDate:'',unit,noticeId:id,sourceUrl:TIGER_ROOT+'view.do?detailsKey='+id,source:'TIGER official notice'});
     }
    }
   }catch(e){}
  }
  return [...new Map(records.map(x=>[x.recordDate+'|'+x.unit,x])).values()];
 }
+// ACE publishes notice bodies through the same public API used by its website.
+// Match dates to an exact official amount and month; never infer a payment day.
+export async function aceNotice(code,calendar){
+ const root='https://papi.aceetf.co.kr/api/notices';
+ const options={headers:{'User-Agent':'Mozilla/5.0'},signal:AbortSignal.timeout(9000)};
+ const response=await fetch(root+'?searchValue='+encodeURIComponent('분배금')+'&size=10&page=1',options);
+ if(!response.ok)throw Error('ace_notice_list_'+response.status);
+ const listing=await response.json();
+ const notices=(listing.data||[]).filter(x=>/분배금/.test(x.title||'')).slice(0,6);
+ const results=await Promise.all(notices.map(async notice=>{
+  try{
+   const r=await fetch(root+'/'+notice.id,{headers:options.headers,signal:AbortSignal.timeout(9000)});
+   if(!r.ok)return [];
+   const body=await r.json(),content=body.current?.content||'';
+   const period=String(body.current?.title||notice.title).match(/(20\d{2})년\s*(\d{1,2})월/);
+   if(!period)return [];
+   const month=period[1]+'-'+period[2].padStart(2,'0');
+   const out=[];
+   for(const tr of content.match(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)||[]){
+    const cells=[...tr.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(x=>decodeHtml(x[1]));
+    const i=cells.indexOf(code);if(i<0)continue;
+    const unit=Number((cells[i+1]||'').replace(/[,원\s]/g,''));
+    if(!(unit>0&&Number.isFinite(unit)))continue;
+    for(const row of calendar.filter(x=>x.recordDate.startsWith(month)&&x.unit===unit))out.push({...row,noticeId:notice.id,sourceUrl:'https://www.aceetf.co.kr/cs/notice/'+notice.id,amountSource:'ACE official notice',dateSource:'ETFcal'});
+   }
+   return out;
+  }catch{return []}
+ }));
+ return [...new Map(results.flat().map(x=>[x.recordDate,x])).values()];
+}
 export default async function handler(req,res){
- res.setHeader('Cache-Control','no-store');const name=String(req.query?.name||'').trim();if(!name)return res.status(400).json({error:'name'});
+ res.setHeader('Cache-Control','no-store');if(req.method!=='GET')return res.status(405).json({error:'method_not_allowed'});const name=String(req.query?.name||'').trim();if(!name)return res.status(400).json({error:'name'});
  try{
   const explicitCode=String(req.query?.code||'').trim().toUpperCase();const code=/^[0-9A-Z]{6}$/.test(explicitCode)?explicitCode:await lookupCode(name);if(!code)return res.status(404).json({error:'ticker_not_found'});
-  // Verified ACE mid-month October 2026 distribution. Exact-code fallback only;
-  // never extrapolate amounts to another month or ETF.
-  const aceOctober2026={'480030':191,'480020':301,'480040':435};
-  if(/^ACE\b/i.test(name)&&Object.prototype.hasOwnProperty.call(aceOctober2026,code)){
-   return res.status(200).json({name,code,records:[{recordDate:'2026-10-15',payDate:'2026-10-19',unit:aceOctober2026[code]}],source:'ACE October 2026 distribution notice (verified)',tax:'pre-tax'});
-  }
-  // Exact October 2026 mid-month RISE/PLUS distributions cross-checked against published calendars.
-  const otherOctober2026={'490600':106,'0138T0':91,'494420':95};
-  if((/^RISE\b/i.test(name)||/^PLUS\b/i.test(name))&&Object.prototype.hasOwnProperty.call(otherOctober2026,code)){
-   return res.status(200).json({name,code,records:[{recordDate:'2026-10-15',payDate:'2026-10-19',unit:otherOctober2026[code]}],source:'October 2026 published distribution calendar (verified)',tax:'pre-tax'});
-  }
-  if(/^TIGER/i.test(name)){try{const official=await tigerNotice(code);if(official.length){const r=await fetch('https://etfcal.com/etfs/kr/'+encodeURIComponent(code),{headers:{'User-Agent':'Mozilla/5.0'},signal:AbortSignal.timeout(7000)});if(r.ok){const body=clean(await r.text());const re=/(20\\d{2}-\\d{2}-\\d{2})\\s+(20\\d{2}-\\d{2}-\\d{2})\\s+([\\d,]+(?:\\.\\d+)?)원/g;let m;while((m=re.exec(body))){for(const x of official){if(x.recordDate===m[2]&&!x.payDate)x.payDate=m[1];}}}const verified=official.filter(x=>x.payDate);if(verified.length)return res.status(200).json({name,code,records:verified,source:'TIGER official + ETFcal verified dates',tax:'pre-tax'});}}catch(e){}}
-  const r=await fetch('https://etfcal.com/etfs/kr/'+encodeURIComponent(code),{headers:{'User-Agent':'Mozilla/5.0'}});if(!r.ok)throw 0;
+  if(/^TIGER/i.test(name)){try{const official=await tigerNotice(code);if(official.length){const r=await fetch('https://etfcal.com/etfs/kr/'+encodeURIComponent(code),{headers:{'User-Agent':'Mozilla/5.0'},signal:AbortSignal.timeout(7000)});if(r.ok){const body=clean(await r.text());const re=/(20\d{2}-\d{2}-\d{2})\s+(20\d{2}-\d{2}-\d{2})\s+([\d,]+(?:\.\d+)?)원/g;let m;while((m=re.exec(body))){for(const x of official){if(x.recordDate===m[2]&&!x.payDate)x.payDate=m[1];}}}const verified=official.filter(x=>x.payDate);if(verified.length)return res.status(200).json({name,code,records:verified,source:'TIGER official + ETFcal verified dates',tax:'pre-tax'});}}catch(e){}}
+  const r=await fetch('https://etfcal.com/etfs/kr/'+encodeURIComponent(code),{headers:{'User-Agent':'Mozilla/5.0'},signal:AbortSignal.timeout(9000)});if(!r.ok)throw 0;
   const text=clean(await r.text()),records=[];const re=/(20\d{2}-\d{2}-\d{2})\s+(20\d{2}-\d{2}-\d{2})\s+([\d,]+(?:\.\d+)?)원/g;let m;
   while((m=re.exec(text))){const payDate=m[1],recordDate=m[2],unit=Number(m[3].replace(/,/g,''));if(payDate>='2026-09-01')records.push({payDate,recordDate,unit})}
-  return res.status(200).json({name,code,records,source:'ETFcal/KRX',tax:'pre-tax'});
+  if(/^ACE\b/i.test(name)){
+   try{const official=await aceNotice(code,records);if(official.length)return res.status(200).json({name,code,records:official,source:'ACE official amounts + ETFcal dates',tax:'pre-tax'});}catch{}
+  }
+  return res.status(200).json({name,code,records,source:'ETFcal (third-party calendar)',officialVerified:false,tax:'pre-tax'});
  }catch(e){return res.status(502).json({error:'source_unavailable'})}
 }

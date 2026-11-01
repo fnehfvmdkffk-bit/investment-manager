@@ -119,17 +119,7 @@ function openOfficialDividendSearch(){
 }
 
 function holdingQtyOnDate(account,product,date){
-  const base=(BASE_HOLDINGS[account]||[]).find(h=>h['상품명']===product);
-  let qty=Number(base?.['수량'])||0;
-  // BASE_HOLDINGS is the workbook's current position. Reverse user trades after the selected
-  // dividend record date, and apply no future transaction to that date.
-  const relevant=TRADES.filter(t=>t.account===account&&t.product===product&&t.date>date);
-  for(const t of relevant){
-    const tq=Number(t.qty)||0;
-    if(t.type==='매수') qty-=tq;
-    else qty+=tq;
-  }
-  return Math.max(0,qty);
+  return holdingStateAtDate(account,product,date).qty;
 }
 function updateDividendQty(){
   const date=document.getElementById('divBaseDate')?.value;
@@ -308,7 +298,7 @@ async function refreshAllAccountPrices(){
 }
 const KRX_HOLIDAYS=new Set(['2024-01-01','2024-02-09','2024-02-12','2024-03-01','2024-04-10','2024-05-01','2024-05-06','2024-05-15','2024-06-06','2024-08-15','2024-09-16','2024-09-17','2024-09-18','2024-10-01','2024-10-03','2024-10-09','2024-12-25','2024-12-31','2025-01-01','2025-01-28','2025-01-29','2025-01-30','2025-03-03','2025-05-01','2025-05-05','2025-05-06','2025-06-06','2025-08-15','2025-10-03','2025-10-06','2025-10-07','2025-10-08','2025-10-09','2025-12-25','2025-12-31','2026-01-01','2026-02-16','2026-02-17','2026-02-18','2026-03-02','2026-05-01','2026-05-05','2026-05-25','2026-06-06','2026-08-17','2026-09-24','2026-09-25','2026-10-05','2026-10-09','2026-12-25','2026-12-31']);
 function prevTradingDay(date){if(!date)return '';let d=new Date(date+'T12:00:00');do{d.setDate(d.getDate()-1);const x=d.toISOString().slice(0,10),w=d.getDay();if(w!==0&&w!==6&&!KRX_HOLIDAYS.has(x))return x}while(true)}
-function holdingStateAtDate(a,p,date){let h=(BASE_HOLDINGS[a]||[]).find(x=>x['상품명']===p),q=Number(h?.['수량'])||0,av=Number(h?.['평단가'])||0,am=Number(h?.['매수금액'])||q*av;for(const t of TRADES.filter(t=>t.account===a&&t.product===p&&(!date||t.date<=date)).sort((x,y)=>(x.date||'').localeCompare(y.date||'')||x.id-y.id)){const n=Number(t.qty)||0,pr=Number(t.price)||0;if(t.type==='매수'){am+=n*pr;q+=n;av=q?am/q:0}else{const sell=Math.min(n,q);q-=sell;am=q?av*q:0;if(!q)av=0}}return {qty:q,avgPrice:av}}
+function holdingStateAtDate(a,p,date){let h=(BASE_HOLDINGS[a]||[]).find(x=>holdingNameKey(x['상품명'])===holdingNameKey(p)),q=Number(h?.['수량'])||0,av=Number(h?.['평단가'])||0,am=Number(h?.['매수금액'])||q*av;for(const t of TRADES.filter(t=>t.account===a&&holdingNameKey(t.product)===holdingNameKey(p)&&(!date||t.date<=date)).sort((x,y)=>(x.date||'').localeCompare(y.date||'')||x.id-y.id)){const n=Number(t.qty)||0,pr=Number(t.price)||0;if(t.type==='매수'){am+=n*pr;q+=n;av=q?am/q:0}else{const sell=Math.min(n,q);q-=sell;am=q?av*q:0;if(!q)av=0}}return {qty:q,avgPrice:av}}
 function holdingQtyAtDate(a,p,date){return holdingStateAtDate(a,p,date).qty}
 async function manualDividendRefresh(){
  const button=document.getElementById('dividendRefreshButton');
@@ -323,24 +313,31 @@ async function manualDividendRefresh(){
 async function refreshAllDividends(rebuild=false){
  let added=0,updated=0,checked=0,failed=0;const failedItems=[];
  // Preserve previously recorded distributions even when a source temporarily omits them.
- const seen=new Set();
+ const seen=new Set(),responses=new Map();
  for(const a of names){
-  for(const h of calculatedHoldings(a).filter(h=>(Number(h['수량'])||0)>0)){
+  for(const product of productsFor(a)){
+   const h={'상품명':product};
    checked++;
    try{
-    const r=await fetch('/api/dividend?name='+encodeURIComponent(h['상품명'])+'&code='+encodeURIComponent(holdingStockCode(h['상품명'])==='-'?'':holdingStockCode(h['상품명'])),{cache:'no-store'});
-    if(!r.ok){failed++;failedItems.push(a+' · '+h['상품명']+' (HTTP '+r.status+')');continue}
-    const d=await r.json();
+    const code=holdingStockCode(h['상품명']),requestKey=code==='-'?holdingNameKey(h['상품명']):code;
+    if(!responses.has(requestKey))responses.set(requestKey,(async()=>{
+     const r=await fetch('/api/dividend?name='+encodeURIComponent(h['상품명'])+'&code='+encodeURIComponent(code==='-'?'':code),{cache:'no-store',signal:AbortSignal.timeout(55000)});
+     if(!r.ok)throw Error('HTTP '+r.status);
+     const body=await r.json();if(!Array.isArray(body.records)||!body.records.length)throw Error('확인된 분배금 없음');return body;
+    })());
+    const d=await responses.get(requestKey);
     for(const x of (Array.isArray(d.records)?d.records:[])){
      const unit=Number(x.unit),recordDate=String(x.recordDate||''),payDate=String(x.payDate||'');
-     if(!(unit>0)||(!recordDate&&!payDate))continue;
+     if(!Number.isFinite(unit)||!(unit>0)||!/^\d{4}-\d{2}-\d{2}$/.test(recordDate)||!/^\d{4}-\d{2}-\d{2}$/.test(payDate)||payDate<recordDate||new Date(recordDate+'T00:00:00Z').toISOString().slice(0,10)!==recordDate||new Date(payDate+'T00:00:00Z').toISOString().slice(0,10)!==payDate)continue;
      const identity=[a,holdingNameKey(h['상품명']),recordDate||payDate].join('|');
      if(seen.has(identity))continue;seen.add(identity);
-     const existsBase=(DATA[a].rows||[]).some(z=>String(z['상품명']||'')===String(h['상품명'])&&Number(z['배당단가']||0)===unit&&(payDate&&String(z['지급일']||'')===payDate||recordDate&&String(z['기준일']||'')===recordDate));
+     const existsBase=(DATA[a].rows||[]).some(z=>holdingNameKey(z['상품명'])===holdingNameKey(h['상품명'])&&(payDate&&String(z['지급일']||'')===payDate||recordDate&&String(z['기준일']||'')===recordDate));
      if(existsBase)continue;
      const baseDate=recordDate||payDate;
      const old=USER_DIVS.find(z=>z.account===a&&holdingNameKey(z.product)===holdingNameKey(h['상품명'])&&((recordDate&&(z.recordDate===recordDate||z.baseDate===recordDate||z.baseDate===baseDate||z.baseDate===prevTradingDay(prevTradingDay(recordDate))))||(payDate&&z.payDate===payDate)));
      if(old){
+      const hs=holdingStateAtDate(a,h['상품명'],baseDate);
+      if(old.source==='auto'&&Number(old.qty)!==hs.qty){old.qty=hs.qty;old.avgPrice=hs.avgPrice;updated++}
       if(old.source==='auto'&&Number(old.unit)!==unit){old.unit=unit;updated++}
       if(old.source==='auto'&&payDate&&old.payDate!==payDate){old.payDate=payDate;updated++}
       if(old.source==='auto'&&recordDate&&old.recordDate!==recordDate){old.recordDate=recordDate;old.baseDate=recordDate;updated++}
@@ -349,25 +346,14 @@ async function refreshAllDividends(rebuild=false){
      }
      const hs=holdingStateAtDate(a,h['상품명'],baseDate);
      if(!(hs.qty>0))continue;
-     USER_DIVS.push({id:Date.now()+added,account:a,baseDate,payDate,recordDate,product:h['상품명'],unit,qty:hs.qty,avgPrice:hs.avgPrice,source:'auto',status:payDate?'scheduled':'announced'});added++;
+     USER_DIVS.push({id:Date.now()+added,account:a,baseDate,payDate,recordDate,product:h['상품명'],unit,qty:hs.qty,avgPrice:hs.avgPrice,source:'auto',sourceUrl:x.sourceUrl||'',verification:d.source||'',status:payDate?'scheduled':'announced'});added++;
     }
-   }catch(e){failed++;failedItems.push(a+' · '+h['상품명']+' (연결 오류)')}
+   }catch(e){failed++;failedItems.push(a+' · '+h['상품명']+' ('+String(e.message||'연결 오류')+')')}
   }
  }
- // Match distributions by account, normalized product and event date, not by unit amount.
- // An official correction must update a record rather than create a second dividend.
- const uniq=new Map();
- for(const d of USER_DIVS){
-  const eventDate=d.recordDate||d.payDate||d.baseDate;
-  const k=[d.account,holdingNameKey(d.product),eventDate].join('|');
-  const prior=uniq.get(k);
-  if(!prior||prior.source==='auto'&&d.source!=='auto')uniq.set(k,d);
-  else if(prior.source==='auto'&&d.source==='auto'&&!prior.payDate&&d.payDate)uniq.set(k,d);
- }
-
- USER_DIVS=[...uniq.values()];
- localStorage.setItem(DIV_STORE_KEY,JSON.stringify(USER_DIVS));
- await saveServerState();render();
+ // Existing saved records are preserved; event matching above prevents new duplicates.
+ if(added||updated){localStorage.setItem(DIV_STORE_KEY,JSON.stringify(USER_DIVS));await saveServerState()}
+ render();
  const st=document.getElementById('syncStatus');
  st.textContent=(added?'신규 배당 '+added+'건 자동 추가':'신규 배당 없음')+(updated?' · 지급일 갱신 '+updated+'건':'')+(failed?' · 조회 실패 '+failed+'종목':'');
  st.classList.remove('auth-hidden');setTimeout(()=>st.classList.add('auth-hidden'),5000);
