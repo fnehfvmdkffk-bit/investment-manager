@@ -12,6 +12,10 @@ export default async function handler(req,res){
   tigerList:'https://investments.miraeasset.com/tigeretf/ko/customer/notice/list.do?listCnt=30&pageIndex=1',
   tiger767:'https://investments.miraeasset.com/tigeretf/ko/customer/notice/view.do?listCnt=10&pageIndex=1&detailsKey=767&q=',
   tiger773:'https://investments.miraeasset.com/tigeretf/ko/customer/notice/view.do?listCnt=10&pageIndex=1&detailsKey=773&q=',
+  riseProducts:'https://kbam.co.kr/api/products/etfs',
+  riseSearch:'https://kbam.co.kr/api/products/etfs/search?keyword=490590',
+  riseAutocomplete:'https://kbam.co.kr/api/products/etfs/autocomplete?keyword=490590',
+  riseDividend:'https://kbam.co.kr/api/products/etfs/44F8/dividend',
   riseList:'https://kbam.co.kr/support/notice',
   rise842:'https://kbam.co.kr/support/notice/842',
   rise846:'https://kbam.co.kr/support/notice/846'
