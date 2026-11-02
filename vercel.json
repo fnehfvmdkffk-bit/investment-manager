@@ -5,11 +5,7 @@
       "regions": [
         "icn1"
       ],
-      "includeFiles": [
-        "node_modules/tesseract.js/src/worker-script/node/**",
-        "node_modules/tesseract.js-core/**",
-        "node_modules/@tesseract.js-data/kor/**"
-      ]
+      "includeFiles": "node_modules/{tesseract.js,tesseract.js-core,@tesseract.js-data/kor}/**"
     },
     "api/test-tiger-notice.js": {
       "regions": [
