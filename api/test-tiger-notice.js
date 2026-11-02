@@ -1,3 +1,4 @@
+<stdin>:7: SyntaxWarning: invalid escape sequence '\/'
 import {load} from '../lib/dividend-sources.js';
 // Diagnostic only: fetches one public TIGER ETF notice; never changes portfolio data.
 export default async function handler(req,res){
@@ -5,6 +6,7 @@ export default async function handler(req,res){
  if(req.method!=='GET')return res.status(405).json({error:'method_not_allowed'});
  const inspect=String(req.query?.inspect||'');
  const urls={
+  tigerAjax:'https://investments.miraeasset.com/tigeretf/ko/customer/notice/list.ajax?firstIndex=0&listCnt=30&pageIndex=1&q=',
   tigerCommon:'https://investments.miraeasset.com/tigeretf/common/js/controller/co/COCmmCtrl.js',
   tigerController:'https://investments.miraeasset.com/tigeretf/common/js/controller/bm/bma/BMANoticeCtrl.js',
   tigerDistribution:'https://investments.miraeasset.com/tigeretf/ko/distribution/annual/list.do',
@@ -15,6 +17,14 @@ export default async function handler(req,res){
   rise842:'https://kbam.co.kr/support/notice/842',
   rise846:'https://kbam.co.kr/support/notice/846'
  };
+ if(inspect==='riseScripts'){
+  try{
+   const home=await load(urls.riseList);
+   const paths=[...new Set([...home.matchAll(/<script[^>]*src=["'](\/_next\/static\/chunks\/[^"']+\.js)["']/g)].map(x=>x[1]))];
+   const results=await Promise.all(paths.map(async path=>{try{const js=await load('https://kbam.co.kr'+path);return {path,bytes:js.length,endpoints:[...new Set([...js.matchAll(/[^\s"'`]{0,50}\/api\/[^\s"'`]{1,180}/g)].map(x=>x[0]))].slice(0,50),matches:[...js.matchAll(/.{0,130}(?:dividend|distribution|dividends|notices\/|\/funds\/|\/products\/).{0,250}/gi)].slice(0,25).map(x=>x[0])}}catch(e){return {path,error:String(e.message)}}}));
+   return res.status(200).json({results});
+  }catch(e){return res.status(502).json({error:String(e.message)})}
+ }
  if(inspect){
   if(!urls[inspect])return res.status(400).json({error:'unsupported_source'});
   try{return res.status(200).json({source:urls[inspect],httpStatus:200,html:(await load(urls[inspect])).slice(0,500000)});}catch(e){return res.status(502).json({error:String(e.message)})}
