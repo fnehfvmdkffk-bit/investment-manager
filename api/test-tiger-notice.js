@@ -1,4 +1,3 @@
-<stdin>:7: SyntaxWarning: invalid escape sequence '\/'
 import {load} from '../lib/dividend-sources.js';
 // Diagnostic only: fetches one public TIGER ETF notice; never changes portfolio data.
 export default async function handler(req,res){
