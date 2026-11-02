@@ -5,6 +5,7 @@ export default async function handler(req,res){
  if(req.method!=='GET')return res.status(405).json({error:'method_not_allowed'});
  const inspect=String(req.query?.inspect||'');
  const urls={
+  tigerCommon:'https://investments.miraeasset.com/tigeretf/common/js/controller/co/COCmmCtrl.js',
   tigerController:'https://investments.miraeasset.com/tigeretf/common/js/controller/bm/bma/BMANoticeCtrl.js',
   tigerDistribution:'https://investments.miraeasset.com/tigeretf/ko/distribution/annual/list.do',
   tigerList:'https://investments.miraeasset.com/tigeretf/ko/customer/notice/list.do?listCnt=30&pageIndex=1',
