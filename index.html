@@ -119,7 +119,7 @@ function openOfficialDividendSearch(){
 }
 
 function holdingQtyOnDate(account,product,date){
-  return holdingStateAtDate(account,product,date).qty;
+  return dividendEntitlementState(account,product,date).qty;
 }
 function updateDividendQty(){
   const date=document.getElementById('divBaseDate')?.value;
@@ -241,7 +241,7 @@ function updateSummary(){
 function setCapital(a,v){const n=Number(v);CAPITAL[a]=n>=0?n:0;localStorage.setItem(CAPITAL_STORE_KEY,JSON.stringify(CAPITAL));saveServerState();updateSummary()} function priceKey(a,p){return a+'||'+p}
 function productDividendTotal(a,p){return allDividendRows(a).filter(r=>String(r['상품명']||'')===String(p)).reduce((t,r)=>{let v=r['실 배당금액'];if(v==null)v=r['총 배당금액'];if(v==null)v=r['세후배당금액'];return t+(Number(v)||0)},0)}
 function holdingsWithReturns(a){return calculatedHoldings(a).map(h=>{const q=Number(h['수량'])||0,av=Number(h['평단가'])||0,cost=Number(h['매수금액'])||0,pr=Number(PRICES[priceKey(a,h['상품명'])])||0,val=pr*q,div=productDividendTotal(a,h['상품명']),evalProfit=pr?val-cost:null,profit=pr?evalProfit+div:null,rate=pr&&cost?profit/cost*100:null,evalRate=pr&&cost?evalProfit/cost*100:null;return {...h,'현재가격':pr,'평가금액':pr?val:null,'평가손익':evalProfit,'배당금':div,'수익금':profit,'수익률':rate,'평가수익률':evalRate}})}
-const HOLDING_CODES={"KODEX미국SP500데일리커버드콜OTM":"0005A0","TIGER미국배당다우존스타겟데일리커버드콜":"0008S0","RISE미국SP500데일리고정커버드콜":"0138T0","KODEX미국배당커버드콜액티브":"441640","TIGER미국나스닥100커버드콜합성":"441680","TIGER미국배당다우존스타겟커버드콜2호":"458760","ACE미국500데일리타겟커버드콜합성":"480030","TIGER미국SP500타겟데일리커버드콜":"482730","KODEX미국배당다우존스타겟커버드콜":"483290","TIGER미국나스닥100타겟데일리커버드콜":"486290","RISE미국배당100데일리고정커버드콜":"490600","SOL미국500타겟데일리커버드콜액티브":"494210","KODEX미국나스닥100데일리커버드콜OTM":"494300","PLUS미국배당증가성장주데일리커버드콜":"494420","KODEX미국성장커버드콜액티브":"0144L0","TIGER미국테크TOP10타겟커버드콜":"474220","ACE미국빅테크7데일리타겟커버드콜합성":"480020","ACE미국반도체데일리타겟커버드콜합성":"480040","KODEX미국AI테크TOP10타겟커버드콜":"483280","RISE미국AI밸류체인데일리고정커버드콜":"490590","RISE미국테크100데일리고정커버드콜":"491620","TIGER미국AI빅테크10타겟데일리커버드콜":"493810","TIGER리츠부동산인프라TOP10액티브":"0086B0","TIGER리츠부동산인프라10채권혼합액티브":"0086C0","ACE미국30년국채액티브H":"453850","TIGER리츠부동산인프라":"329200"};
+const HOLDING_CODES={"KODEX미국SP500데일리커버드콜OTM":"0005A0","TIGER미국배당다우존스타겟데일리커버드콜":"0008S0","RISE미국SP500데일리고정커버드콜":"0138T0","KODEX미국배당커버드콜액티브":"441640","TIGER미국나스닥100커버드콜합성":"441680","TIGER미국배당다우존스타겟커버드콜2호":"458760","ACE미국500데일리타겟커버드콜합성":"480030","TIGER미국SP500타겟데일리커버드콜":"482730","KODEX미국배당다우존스타겟커버드콜":"483290","TIGER미국나스닥100타겟데일리커버드콜":"486290","RISE미국배당100데일리고정커버드콜":"490600","SOL미국500타겟데일리커버드콜액티브":"494210","KODEX미국나스닥100데일리커버드콜OTM":"494300","PLUS미국배당증가성장주데일리커버드콜":"494420","KODEX미국성장커버드콜액티브":"0144L0","TIGER미국테크TOP10타겟커버드콜":"474220","ACE미국빅테크7데일리타겟커버드콜합성":"480020","ACE미국반도체데일리타겟커버드콜합성":"480040","KODEX미국AI테크TOP10타겟커버드콜":"483280","RISE미국AI밸류체인데일리고정커버드콜":"490590","RISE미국테크100데일리고정커버드콜":"491620","TIGER미국AI빅테크10타겟데일리커버드콜":"493810","TIGER리츠부동산인프라TOP10액티브":"0086B0","TIGER리츠부동산인프라10채권혼합액티브":"0086C0","ACE미국30년국채액티브H":"453850","TIGER리츠부동산인프라":"329200","TIGER200커버드콜ATM":"289480","TIGER200커버드콜":"289480","RISE200고배당커버드콜ATM":"290080","ACE미국배당다우존스":"402970","TIGER은행고배당TOP10":"466940","TIGER은행고배당플러스TOP10":"466940","TIGER배당프리미엄액티브":"472150","RISE미국30년국채커버드콜합성":"472830","SOL미국30년국채커버드콜합성":"473330","KODEX테슬라인컴프리미엄혼합액티브":"475080","KODEX테슬라인컴프리미엄채권혼합액티브":"475080","KODEX테슬라커버드콜채권혼합액티브":"475080","ACE미국30년국채액티브":"476760","SOL미국500타겟커버드콜액티브":"494210","ACE미국배당퀄리티커버드콜액티브":"0049M0","RISE테슬라미국채타겟커버드콜혼합합성":"0013R0"};
 const CODE_STORE_KEY='investment_manual_codes_v1';
 let MANUAL_CODES={};try{MANUAL_CODES=JSON.parse(localStorage.getItem(CODE_STORE_KEY)||'{}')}catch(e){}
 function holdingStockCode(name){const key=holdingNameKey(name);return MANUAL_CODES[key]||HOLDING_CODES[key]||'-'}
@@ -298,7 +298,16 @@ async function refreshAllAccountPrices(){
 }
 const KRX_HOLIDAYS=new Set(['2024-01-01','2024-02-09','2024-02-12','2024-03-01','2024-04-10','2024-05-01','2024-05-06','2024-05-15','2024-06-06','2024-08-15','2024-09-16','2024-09-17','2024-09-18','2024-10-01','2024-10-03','2024-10-09','2024-12-25','2024-12-31','2025-01-01','2025-01-28','2025-01-29','2025-01-30','2025-03-03','2025-05-01','2025-05-05','2025-05-06','2025-06-06','2025-08-15','2025-10-03','2025-10-06','2025-10-07','2025-10-08','2025-10-09','2025-12-25','2025-12-31','2026-01-01','2026-02-16','2026-02-17','2026-02-18','2026-03-02','2026-05-01','2026-05-05','2026-05-25','2026-06-06','2026-08-17','2026-09-24','2026-09-25','2026-10-05','2026-10-09','2026-12-25','2026-12-31']);
 function prevTradingDay(date){if(!date)return '';let d=new Date(date+'T12:00:00');do{d.setDate(d.getDate()-1);const x=d.toISOString().slice(0,10),w=d.getDay();if(w!==0&&w!==6&&!KRX_HOLIDAYS.has(x))return x}while(true)}
-function holdingStateAtDate(a,p,date){let h=(BASE_HOLDINGS[a]||[]).find(x=>holdingNameKey(x['상품명'])===holdingNameKey(p)),q=Number(h?.['수량'])||0,av=Number(h?.['평단가'])||0,am=Number(h?.['매수금액'])||q*av;for(const t of TRADES.filter(t=>t.account===a&&holdingNameKey(t.product)===holdingNameKey(p)&&(!date||t.date<=date)).sort((x,y)=>(x.date||'').localeCompare(y.date||'')||x.id-y.id)){const n=Number(t.qty)||0,pr=Number(t.price)||0;if(t.type==='매수'){am+=n*pr;q+=n;av=q?am/q:0}else{const sell=Math.min(n,q);q-=sell;am=q?av*q:0;if(!q)av=0}}return {qty:q,avgPrice:av}}
+function dividendProductKey(product){const code=holdingStockCode(product);return code&&code!=='-'?'code:'+code:'name:'+holdingNameKey(product)}
+function dividendTargets(account){
+ const map=new Map();
+ for(const h of calculatedHoldings(account))if(Number(h['수량'])>0)map.set(dividendProductKey(h['상품명']),h['상품명']);
+ // Recent disposals can still be entitled to a distribution already announced.
+ for(const t of TRADES.filter(t=>t.account===account&&t.type==='매도'&&t.date>='2026-09-01'))if(!map.has(dividendProductKey(t.product)))map.set(dividendProductKey(t.product),t.product);
+ return [...map.values()];
+}
+function dividendEntitlementState(a,p,recordDate){return holdingStateAtDate(a,p,prevTradingDay(prevTradingDay(recordDate)))}
+function holdingStateAtDate(a,p,date){const key=dividendProductKey(p),base=(BASE_HOLDINGS[a]||[]).filter(x=>dividendProductKey(x['상품명'])===key);let q=base.reduce((sum,h)=>sum+(Number(h['수량'])||0),0),am=base.reduce((sum,h)=>sum+(Number(h['매수금액'])||((Number(h['수량'])||0)*(Number(h['평단가'])||0))),0),av=q?am/q:0;for(const t of TRADES.filter(t=>t.account===a&&dividendProductKey(t.product)===key&&(!date||t.date<=date)).sort((x,y)=>(x.date||'').localeCompare(y.date||'')||x.id-y.id)){const n=Number(t.qty)||0,pr=Number(t.price)||0;if(t.type==='매수'){am+=n*pr;q+=n;av=q?am/q:0}else{const sell=Math.min(n,q);q-=sell;am=q?av*q:0;if(!q)av=0}}return {qty:q,avgPrice:av}}
 function holdingQtyAtDate(a,p,date){return holdingStateAtDate(a,p,date).qty}
 async function manualDividendRefresh(){
  const button=document.getElementById('dividendRefreshButton');
@@ -313,39 +322,51 @@ async function manualDividendRefresh(){
 async function refreshAllDividends(rebuild=false){
  let added=0,updated=0,checked=0,failed=0;const failedItems=[];
  // Preserve previously recorded distributions even when a source temporarily omits them.
- const seen=new Set(),responses=new Map();
- for(const a of names){
-  for(const product of productsFor(a)){
-   const h={'상품명':product};
-   checked++;
+ const seen=new Set(),responses=new Map(),jobs=new Map();
+ const keyFor=product=>dividendProductKey(product);
+ for(const a of names)for(const product of dividendTargets(a))if(!jobs.has(keyFor(product)))jobs.set(keyFor(product),product);
+ const queue=[...jobs.entries()];let cursor=0,completed=0;
+ async function worker(){
+  while(cursor<queue.length){
+   const [key,product]=queue[cursor++];
    try{
-    const code=holdingStockCode(h['상품명']),requestKey=code==='-'?holdingNameKey(h['상품명']):code;
-    if(!responses.has(requestKey))responses.set(requestKey,(async()=>{
-     const r=await fetch('/api/dividend?name='+encodeURIComponent(h['상품명'])+'&code='+encodeURIComponent(code==='-'?'':code),{cache:'no-store',signal:AbortSignal.timeout(55000)});
-     if(!r.ok)throw Error('HTTP '+r.status);
-     const body=await r.json();if(!Array.isArray(body.records)||!body.records.length)throw Error('확인된 분배금 없음');return body;
-    })());
-    const d=await responses.get(requestKey);
+    const code=holdingStockCode(product);
+    const r=await fetch('/api/dividend?name='+encodeURIComponent(product)+'&code='+encodeURIComponent(code==='-'?'':code),{cache:'no-store',signal:AbortSignal.timeout(90000)});
+    const body=await r.json();
+    if(!r.ok)throw Error(body.message||'HTTP '+r.status);
+    if(!Array.isArray(body.records)||!body.records.length)throw Error(body.message||'확인된 분배금 없음');
+    responses.set(key,{data:body});
+   }catch(e){responses.set(key,{error:String(e.message||'연결 오류')})}
+   completed++;const progress=document.getElementById('syncStatus');if(progress)progress.textContent='배당 조회 중 · '+completed+'/'+queue.length+'종목';
+  }
+ }
+ await Promise.all(Array.from({length:Math.min(3,queue.length)},()=>worker()));
+ for(const a of names){
+  for(const product of dividendTargets(a)){
+   const h={'상품명':product};checked++;
+   try{
+    const result=responses.get(keyFor(product));if(result?.error)throw Error(result.error);
+    const d=result.data;
     if(d.records.some(x=>x.status==='dates_pending')){failed++;failedItems.push(a+' · '+h['상품명']+' (공식 분배금 확인 · 기준일/지급일 대조 필요)')}
     for(const x of (Array.isArray(d.records)?d.records:[])){
      const unit=Number(x.unit),recordDate=String(x.recordDate||''),payDate=String(x.payDate||'');
      if(!Number.isFinite(unit)||!(unit>0)||!/^\d{4}-\d{2}-\d{2}$/.test(recordDate)||!/^\d{4}-\d{2}-\d{2}$/.test(payDate)||payDate<recordDate||new Date(recordDate+'T00:00:00Z').toISOString().slice(0,10)!==recordDate||new Date(payDate+'T00:00:00Z').toISOString().slice(0,10)!==payDate)continue;
-     const identity=[a,holdingNameKey(h['상품명']),recordDate||payDate].join('|');
+     const identity=[a,dividendProductKey(h['상품명']),recordDate||payDate].join('|');
      if(seen.has(identity))continue;seen.add(identity);
-     const existsBase=(DATA[a].rows||[]).some(z=>holdingNameKey(z['상품명'])===holdingNameKey(h['상품명'])&&(payDate&&String(z['지급일']||'')===payDate||recordDate&&String(z['기준일']||'')===recordDate));
+     const existsBase=(DATA[a].rows||[]).some(z=>dividendProductKey(z['상품명'])===dividendProductKey(h['상품명'])&&(payDate&&String(z['지급일']||'')===payDate||recordDate&&String(z['기준일']||'')===recordDate));
      if(existsBase)continue;
      const baseDate=recordDate||payDate;
-     const old=USER_DIVS.find(z=>z.account===a&&holdingNameKey(z.product)===holdingNameKey(h['상품명'])&&((recordDate&&(z.recordDate===recordDate||z.baseDate===recordDate||z.baseDate===baseDate||z.baseDate===prevTradingDay(prevTradingDay(recordDate))))||(payDate&&z.payDate===payDate)));
+     const old=USER_DIVS.find(z=>z.account===a&&dividendProductKey(z.product)===dividendProductKey(h['상품명'])&&((recordDate&&(z.recordDate===recordDate||z.baseDate===recordDate||z.baseDate===baseDate||z.baseDate===prevTradingDay(prevTradingDay(recordDate))))||(payDate&&z.payDate===payDate)));
      if(old){
-      const hs=holdingStateAtDate(a,h['상품명'],baseDate);
+      const hs=dividendEntitlementState(a,h['상품명'],baseDate);
       if(old.source==='auto'&&Number(old.qty)!==hs.qty){old.qty=hs.qty;old.avgPrice=hs.avgPrice;updated++}
       if(old.source==='auto'&&Number(old.unit)!==unit){old.unit=unit;updated++}
       if(old.source==='auto'&&payDate&&old.payDate!==payDate){old.payDate=payDate;updated++}
       if(old.source==='auto'&&recordDate&&old.recordDate!==recordDate){old.recordDate=recordDate;old.baseDate=recordDate;updated++}
-      if(old.source==='auto'&&payDate&&old.status!=='scheduled'){old.status='scheduled';updated++}
+      if(old.source==='auto'&&x.sourceUrl&&old.sourceUrl!==x.sourceUrl){old.sourceUrl=x.sourceUrl;old.verification=d.source;updated++}
       continue;
      }
-     const hs=holdingStateAtDate(a,h['상품명'],baseDate);
+     const hs=dividendEntitlementState(a,h['상품명'],baseDate);
      if(!(hs.qty>0))continue;
      USER_DIVS.push({id:Date.now()+added,account:a,baseDate,payDate,recordDate,product:h['상품명'],unit,qty:hs.qty,avgPrice:hs.avgPrice,source:'auto',sourceUrl:x.sourceUrl||'',verification:d.source||'',status:payDate?'scheduled':'announced'});added++;
     }
@@ -356,7 +377,7 @@ async function refreshAllDividends(rebuild=false){
  if(added||updated){localStorage.setItem(DIV_STORE_KEY,JSON.stringify(USER_DIVS));await saveServerState()}
  render();
  const st=document.getElementById('syncStatus');
- st.textContent=(added?'신규 배당 '+added+'건 자동 추가':'신규 배당 없음')+(updated?' · 지급일 갱신 '+updated+'건':'')+(failed?' · 조회 실패 '+failed+'종목':'');
+ st.textContent=(added?'신규 배당 '+added+'건 자동 추가':'신규 배당 없음')+(updated?' · 배당정보 갱신 '+updated+'건':'')+(failed?' · 조회 실패 '+failed+'종목':'');
  st.classList.remove('auth-hidden');setTimeout(()=>st.classList.add('auth-hidden'),5000);
  const detail=document.getElementById('dividendFailureDetail');if(detail){detail.hidden=!failedItems.length;detail.textContent=failedItems.length?'배당 조회 실패 내역 ('+failedItems.length+'건)\n'+failedItems.map((x,i)=>(i+1)+'. '+x).join('\n'):'';}
  return {added,updated,checked,failed,failedItems};

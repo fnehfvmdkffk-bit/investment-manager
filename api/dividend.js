@@ -1,110 +1,27 @@
-const clean=s=>String(s||'').replace(/<[^>]*>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
-const norm=s=>String(s||'').replace(/\s+/g,'').replace(/타켓/g,'타겟').toUpperCase();
-const KNOWN_CODES={
- 'TIGER미국배당다우존스타겟커버드콜2호':'458760',
- 'TIGER미국S&P500타겟데일리커버드콜':'482730',
- 'KODEX미국배당다우존스타겟커버드콜':'483290',
- 'TIGER미국나스닥100타겟데일리커버드콜':'486290',
- 'TIGER미국테크TOP10타겟커버드콜':'474220',
- 'KODEX미국AI테크TOP10타겟커버드콜':'483280'
-};
-async function lookupCode(name){
- const key=norm(name);
- if(KNOWN_CODES[key])return KNOWN_CODES[key];
- const queries=[String(name).replace(/타켓/g,'타겟'),String(name)];
- for(const query of [...new Set(queries)]){
-  try{
-   const s=await fetch('https://m.stock.naver.com/front-api/search/autoComplete?query='+encodeURIComponent(query)+'&target=stock,index,marketindicator,coin,ipo',{headers:{'User-Agent':'Mozilla/5.0'},signal:AbortSignal.timeout(9000)});
-   if(!s.ok)continue;
-   const j=await s.json(),items=j?.result?.items||j?.items||[];
-   const x=items.find(v=>norm(v.name)===key)||items.find(v=>norm(v.name).includes(key)||key.includes(norm(v.name)));
-   if(x&&/^[0-9A-Z]{6}$/.test(String(x.code||'')))return x.code;
-  }catch(e){}
- }
- return null;
-}
-
-const TIGER_ROOT='https://investments.miraeasset.com/tigeretf/ko/customer/notice/';
-const decodeHtml=s=>String(s||'').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ').replace(/<[^>]*>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\s+/g,' ').trim();
-const iso=(y,m,d)=>{const x=new Date(Date.UTC(+y,+m-1,+d));return x.getUTCFullYear()===+y&&x.getUTCMonth()===+m-1&&x.getUTCDate()===+d?String(y)+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'):null};
-async function tigerNotice(code){
- const headers={'User-Agent':'Mozilla/5.0','Accept':'text/html,application/xhtml+xml','Accept-Language':'ko-KR,ko;q=0.9'};
- const listing=await fetch(TIGER_ROOT+'list.do?listCnt=30&pageIndex=1',{headers,signal:AbortSignal.timeout(9000)});
- if(!listing.ok)throw Error('notice_list_'+listing.status);
- const listHtml=await listing.text();
- const candidates=[];
- const re=/detailsKey=(\d+)[\s\S]{0,650}?(?:분배금\s*지급\s*안내|분배금\s*안내)|(?:분배금\s*지급\s*안내|분배금\s*안내)[\s\S]{0,650}?detailsKey=(\d+)/gi;
- for(const m of listHtml.matchAll(re)){const id=m[1]||m[2];if(!candidates.includes(id))candidates.push(id)}
- // Known verified notice provides a safe fallback if the listing markup changes.
- if(!candidates.includes('767'))candidates.push('767');
- const records=[];
- for(const id of candidates.slice(0,8)){
-  try{
-   const response=await fetch(TIGER_ROOT+'view.do?listCnt=10&pageIndex=1&detailsKey='+id+'&q=',{headers,signal:AbortSignal.timeout(9000)});
-   if(!response.ok)continue;
-   const html=await response.text(),plain=decodeHtml(html);
-   if(!/분배금\s*(지급\s*)?안내/.test(plain))continue;
-   const title=plain.match(/TIGER ETF\s*(20\d{2})년\s*(\d{1,2})월[^\n]{0,25}?분배금\s*지급\s*안내/);
-   if(!title)continue;
-   const year=title[1],month=title[2];
-   const dateMatch=plain.match(/(?:분배금\s*)?지급기준일\s*[:：]?\s*(?:(20\d{2})[.\-/년 ]+)?(\d{1,2})[.\-/월 ]+(\d{1,2})/);
-   const recordDate=dateMatch?iso(dateMatch[1]||year,dateMatch[2],dateMatch[3]):null;
-   if(!recordDate)continue;
-   for(const table of html.match(/<table\b[^>]*>[\s\S]*?<\/table>/gi)||[]){
-    for(const tr of table.match(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)||[]){
-     const cells=[...tr.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(x=>decodeHtml(x[1]));
-     const i=cells.findIndex(v=>v===code);
-     if(i<0)continue;
-     const unit=Number((cells[i+2]||'').replace(/[,원\s]/g,''));
-     if(unit>0&&unit<100000)records.push({recordDate,payDate:'',unit,noticeId:id,sourceUrl:TIGER_ROOT+'view.do?detailsKey='+id,source:'TIGER official notice'});
-    }
-   }
-  }catch(e){}
- }
- return [...new Map(records.map(x=>[x.recordDate+'|'+x.unit,x])).values()];
-}
-// ACE publishes notice bodies through the same public API used by its website.
-// Match dates to an exact official amount and month; never infer a payment day.
-export async function aceNotice(code,calendar){
- const root='https://papi.aceetf.co.kr/api/notices';
- const options={headers:{'User-Agent':'Mozilla/5.0'},signal:AbortSignal.timeout(9000)};
- const response=await fetch(root+'?searchValue='+encodeURIComponent('분배금')+'&size=10&page=1',options);
- if(!response.ok)throw Error('ace_notice_list_'+response.status);
- const listing=await response.json();
- const notices=(listing.data||[]).filter(x=>/분배금/.test(x.title||'')).slice(0,6);
- const results=await Promise.all(notices.map(async notice=>{
-  try{
-   const r=await fetch(root+'/'+notice.id,{headers:options.headers,signal:AbortSignal.timeout(9000)});
-   if(!r.ok)return [];
-   const body=await r.json(),content=body.current?.content||'';
-   const period=String(body.current?.title||notice.title).match(/(20\d{2})년\s*(\d{1,2})월/);
-   if(!period)return [];
-   const month=period[1]+'-'+period[2].padStart(2,'0');
-   const out=[];
-   for(const tr of content.match(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)||[]){
-    const cells=[...tr.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(x=>decodeHtml(x[1]));
-    const i=cells.indexOf(code);if(i<0)continue;
-    const unit=Number((cells[i+1]||'').replace(/[,원\s]/g,''));
-    if(!(unit>0&&Number.isFinite(unit)))continue;
-    const matching=calendar.filter(x=>x.recordDate.startsWith(month)&&x.unit===unit);
-    for(const row of matching.length?matching:[{recordDate:'',payDate:'',unit,period:month,status:'dates_pending'}])out.push({...row,noticeId:notice.id,sourceUrl:'https://www.aceetf.co.kr/cs/notice/'+notice.id,amountSource:'ACE official notice',dateSource:matching.length?'ETFcal':null});
-   }
-   return out;
-  }catch{return []}
- }));
- return [...new Map(results.flat().map(x=>[x.recordDate||x.period,x])).values()];
-}
+import {resolveCode} from '../lib/etf-codes.js';
+import {providers,calendar} from '../lib/dividend-sources.js';
 export default async function handler(req,res){
- res.setHeader('Cache-Control','no-store');if(req.method!=='GET')return res.status(405).json({error:'method_not_allowed'});const name=String(req.query?.name||'').trim();if(!name)return res.status(400).json({error:'name'});
+ res.setHeader('Cache-Control','no-store');
+ if(req.method!=='GET')return res.status(405).json({error:'method_not_allowed'});
+ const name=String(req.query?.name||'').trim();if(!name)return res.status(400).json({error:'name_required'});
  try{
-  const explicitCode=String(req.query?.code||'').trim().toUpperCase();const code=/^[0-9A-Z]{6}$/.test(explicitCode)?explicitCode:await lookupCode(name);if(!code)return res.status(404).json({error:'ticker_not_found'});
-  if(/^TIGER/i.test(name)){try{const official=await tigerNotice(code);if(official.length){const r=await fetch('https://etfcal.com/etfs/kr/'+encodeURIComponent(code),{headers:{'User-Agent':'Mozilla/5.0'},signal:AbortSignal.timeout(7000)});if(r.ok){const body=clean(await r.text());const re=/(20\d{2}-\d{2}-\d{2})\s+(20\d{2}-\d{2}-\d{2})\s+([\d,]+(?:\.\d+)?)원/g;let m;while((m=re.exec(body))){for(const x of official){if(x.recordDate===m[2]&&!x.payDate)x.payDate=m[1];}}}const verified=official.filter(x=>x.payDate);if(verified.length)return res.status(200).json({name,code,records:verified,source:'TIGER official + ETFcal verified dates',tax:'pre-tax'});}}catch(e){}}
-  const r=await fetch('https://etfcal.com/etfs/kr/'+encodeURIComponent(code),{headers:{'User-Agent':'Mozilla/5.0'},signal:AbortSignal.timeout(9000)});if(!r.ok)throw 0;
-  const text=clean(await r.text()),records=[];const re=/(20\d{2}-\d{2}-\d{2})\s+(20\d{2}-\d{2}-\d{2})\s+([\d,]+(?:\.\d+)?)원/g;let m;
-  while((m=re.exec(text))){const payDate=m[1],recordDate=m[2],unit=Number(m[3].replace(/,/g,''));if(payDate>='2026-09-01')records.push({payDate,recordDate,unit})}
-  if(/^ACE\b/i.test(name)){
-   try{const official=await aceNotice(code,records);if(official.length)return res.status(200).json({name,code,records:official,source:'ACE official amounts; payment dates require verification',tax:'pre-tax'});}catch{}
+  const code=await resolveCode(name,String(req.query?.code||'').trim());
+  if(!code)return res.status(404).json({error:'ticker_not_found',message:'종목코드 확인 필요'});
+  const brand=name.match(/^(TIGER|KODEX|ACE|RISE|SOL|PLUS)\b/i)?.[1]?.toUpperCase();
+  let officialError='';
+  if(brand&&providers[brand]){
+   try{
+    const result=await providers[brand](code);
+    if(result.records.length)return res.status(200).json({name,code,...result,tax:'pre-tax',checkedAt:new Date().toISOString()});
+    officialError='official_records_empty';
+   }catch(e){officialError=String(e.message||'official_source_unavailable')}
   }
-  return res.status(200).json({name,code,records,source:'ETFcal (third-party calendar)',officialVerified:false,tax:'pre-tax'});
- }catch(e){return res.status(502).json({error:'source_unavailable'})}
+  // Preserve the existing third-party fallback and identify its provenance explicitly.
+  try{
+   const result=await calendar(code);
+   return res.status(200).json({name,code,...result,officialError,tax:'pre-tax',outcome:result.records.length?'fallback':'unavailable',message:officialError?'공식 조회 미확인 ('+officialError+')':'확인된 분배금 없음'});
+  }catch{
+   return res.status(502).json({error:'source_unavailable',code,officialError,message:'운용사 조회 연결 실패'});
+  }
+ }catch(e){return res.status(502).json({error:'lookup_unavailable',message:'종목코드 조회 연결 실패'})}
 }
