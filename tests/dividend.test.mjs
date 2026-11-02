@@ -5,7 +5,8 @@ import vm from 'node:vm';
 const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const extract=name=>html.slice(html.indexOf('function '+name+'('),html.indexOf('\n}',html.indexOf('function '+name+'('))+2);
 function context(){
- const ctx=vm.createContext({DIV_STORE_KEY:'test',BASE_HOLDINGS:{A:[{'상품명':'ETF','수량':100,'평단가':10}]},TRADES:[],USER_DIVS:[],DATA:{A:{rows:[]}},names:['A'],holdingNameKey:s=>String(s).replace(/\s/g,''),holdingStockCode:()=> '123456',productsFor:()=>['ETF'],prevTradingDay:d=>d,AbortSignal,Date,Map,Set,Number,String,Array,localStorage:{setItem(){}},saveServerState:async()=>{},render(){},setTimeout(){},document:{getElementById:()=>({textContent:'',classList:{add(){},remove(){}}})}});
+ const elements=new Map();
+ const ctx=vm.createContext({DIV_STORE_KEY:'test',BASE_HOLDINGS:{A:[{'상품명':'ETF','수량':100,'평단가':10}]},TRADES:[],USER_DIVS:[],DATA:{A:{rows:[]}},names:['A'],holdingNameKey:s=>String(s).replace(/\s/g,''),holdingStockCode:()=> '123456',productsFor:()=>['ETF'],prevTradingDay:d=>d,AbortSignal,Date,Map,Set,Number,String,Array,localStorage:{setItem(){}},saveServerState:async()=>{},render(){},setTimeout(){},document:{getElementById:id=>{if(!elements.has(id))elements.set(id,{textContent:'',style:{},classList:{add(){},remove(){}}});return elements.get(id)}}});
  ctx.calculatedHoldings=a=>(ctx.BASE_HOLDINGS[a]||[]).map(h=>({...h,'수량':ctx.holdingStateAtDate(a,h['상품명'],'2099-01-01').qty}));
  vm.runInContext(html.match(/const KRX_HOLIDAYS=[^\n]+/)[0]+'\n'+html.match(/function prevTradingDay[^\n]+/)[0]+'\n'+html.match(/function dividendProductKey[^\n]+/)[0]+'\n'+extract('dividendTargets')+'\n'+html.match(/function dividendEntitlementState[^\n]+/)[0]+'\n'+extract('holdingQtyOnDate')+'\n'+html.match(/function holdingStateAtDate[^\n]+/)[0]+'\n'+'async '+extract('refreshAllDividends'),ctx);return ctx;
 }
@@ -24,3 +25,11 @@ test('sale on ex-dividend day does not reduce dividend entitlement',async()=>{co
 test('historical-only products are not queried and existing records remain',async()=>{const c=context();const calls=source(c);c.productsFor=()=>['ETF','no longer held'];c.DATA.A.rows=[{'상품명':'no longer held','기준일':'2026-09-15','배당단가':50}];await c.refreshAllDividends();assert.equal(calls(),1);assert.equal(c.DATA.A.rows.length,1)});
 test('normalized aliases of a product are queried once per account',async()=>{const c=context();const calls=source(c);c.BASE_HOLDINGS.A.push({'상품명':'E TF','수량':20,'평단가':10});await c.refreshAllDividends();assert.equal(calls(),1);assert.equal(c.USER_DIVS.length,1);assert.equal(c.USER_DIVS[0].qty,120)});
 test('a source failure never erases a saved dividend or writes empty state',async()=>{const c=context();const existing={id:1,account:'A',product:'ETF',baseDate:'2026-09-15',unit:40,qty:100};c.USER_DIVS=[existing];c.fetch=async()=>{throw Error('timeout')};let writes=0;c.saveServerState=async()=>{writes++};const r=await c.refreshAllDividends();assert.equal(c.USER_DIVS[0],existing);assert.equal(r.failed,1);assert.equal(writes,0)});
+test('verified cached response imports idempotently and shows verification time separately from failures',async()=>{
+ const c=context();c.fetch=async()=>({ok:true,json:async()=>({records:[row],source:'RISE official notices (verified cache)',cached:true,verifiedAt:'2026-11-02T12:22:17.648Z'})});
+ await c.refreshAllDividends();const r=await c.refreshAllDividends();
+ assert.equal(c.USER_DIVS.length,1);assert.equal(r.failed,0);
+ const detail=c.document.getElementById('dividendFailureDetail');
+ assert.match(detail.textContent,/공식 검증자료 사용/);assert.match(detail.textContent,/21:22/);
+ assert.doesNotMatch(detail.textContent,/배당 조회 실패/);assert.equal(detail.hidden,false);
+});

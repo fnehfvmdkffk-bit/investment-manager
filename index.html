@@ -320,7 +320,7 @@ async function manualDividendRefresh(){
  finally{if(button){button.disabled=false;button.textContent='배당 자동조회'}}
 }
 async function refreshAllDividends(rebuild=false){
- let added=0,updated=0,checked=0,failed=0;const failedItems=[];
+ let added=0,updated=0,checked=0,failed=0;const failedItems=[],cachedItems=[];
  // Preserve previously recorded distributions even when a source temporarily omits them.
  const seen=new Set(),responses=new Map(),jobs=new Map();
  const keyFor=product=>dividendProductKey(product);
@@ -347,6 +347,7 @@ async function refreshAllDividends(rebuild=false){
    try{
     const result=responses.get(keyFor(product));if(result?.error)throw Error(result.error);
     const d=result.data;
+    if(d.cached)cachedItems.push(a+' · '+h['상품명']+' (공식 자료 검증: '+new Date(d.verifiedAt||d.checkedAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})+')');
     if(d.records.some(x=>x.status==='dates_pending')){failed++;failedItems.push(a+' · '+h['상품명']+' (공식 분배금 확인 · 기준일/지급일 대조 필요)')}
     for(const x of (Array.isArray(d.records)?d.records:[])){
      const unit=Number(x.unit),recordDate=String(x.recordDate||''),payDate=String(x.payDate||'');
@@ -377,9 +378,9 @@ async function refreshAllDividends(rebuild=false){
  if(added||updated){localStorage.setItem(DIV_STORE_KEY,JSON.stringify(USER_DIVS));await saveServerState()}
  render();
  const st=document.getElementById('syncStatus');
- st.textContent=(added?'신규 배당 '+added+'건 자동 추가':'신규 배당 없음')+(updated?' · 배당정보 갱신 '+updated+'건':'')+(failed?' · 조회 실패 '+failed+'종목':'');
+ st.textContent=(added?'신규 배당 '+added+'건 자동 추가':'신규 배당 없음')+(updated?' · 배당정보 갱신 '+updated+'건':'')+(failed?' · 조회 실패 '+failed+'종목':'')+(cachedItems.length?' · 공식 검증자료 사용 '+cachedItems.length+'건':'');
  st.classList.remove('auth-hidden');setTimeout(()=>st.classList.add('auth-hidden'),5000);
- const detail=document.getElementById('dividendFailureDetail');if(detail){detail.hidden=!failedItems.length;detail.textContent=failedItems.length?'배당 조회 실패 내역 ('+failedItems.length+'건)\n'+failedItems.map((x,i)=>(i+1)+'. '+x).join('\n'):'';}
+ const detail=document.getElementById('dividendFailureDetail');if(detail){const sections=[];if(failedItems.length)sections.push('배당 조회 실패 내역 ('+failedItems.length+'건)\n'+failedItems.map((x,i)=>(i+1)+'. '+x).join('\n'));if(cachedItems.length)sections.push('공식 검증자료 사용 ('+cachedItems.length+'건)\n'+cachedItems.join('\n'));detail.hidden=!sections.length;detail.textContent=sections.join('\n\n');detail.style.color=failedItems.length?'#b42318':'#475569';}
  return {added,updated,checked,failed,failedItems};
 }
 function render(){updateSummary();tabs();updateProductSelect();updateDividendProductSelect();syncCodeInputs();document.getElementById('holdings').innerHTML=holdingsTable();renderHistory();renderDividendInputHistory();renderDivs()}
