@@ -20,6 +20,15 @@ export default async function handler(req,res){
   rise842:'https://kbam.co.kr/support/notice/842',
   rise846:'https://kbam.co.kr/support/notice/846'
  };
+ if(inspect==='asset'||inspect==='publicApi'){
+  const target=new URL(String(req.query?.path||''),'https://kbam.co.kr');
+  const allowed=target.origin==='https://kbam.co.kr'&&(inspect==='asset'?(/^\/_next\/static\/chunks\/[a-zA-Z0-9_.-]+\.js$/.test(target.pathname)||/^\/media\/tinymce\/[a-zA-Z0-9_./-]+\.png$/.test(target.pathname)):/^\/api\/products\/etfs(?:\/|$)/.test(target.pathname));
+  if(!allowed)return res.status(400).json({error:'unsupported_asset'});
+  try{
+   if(target.pathname.endsWith('.png')){const r=await fetch(target,{signal:AbortSignal.timeout(18000)});if(!r.ok)throw Error('upstream_'+r.status);return res.status(200).json({base64:Buffer.from(await r.arrayBuffer()).toString('base64')});}
+   return res.status(200).json({html:await load(target.href)});
+  }catch(e){return res.status(502).json({error:String(e.message)})}
+ }
  if(inspect==='riseScripts'){
   try{
    const home=await load(urls.riseList);
@@ -30,7 +39,7 @@ export default async function handler(req,res){
  }
  if(inspect){
   if(!urls[inspect])return res.status(400).json({error:'unsupported_source'});
-  try{return res.status(200).json({source:urls[inspect],httpStatus:200,html:(await load(urls[inspect])).slice(0,500000)});}catch(e){return res.status(502).json({error:String(e.message)})}
+  try{return res.status(200).json({source:urls[inspect],httpStatus:200,html:(await load(urls[inspect],inspect==='tigerAjax'?{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Requested-With':'XMLHttpRequest'},body:'firstIndex=0&listCnt=30&pageIndex=1&detailsKey=&q='+encodeURIComponent('분배금')}:{})).slice(0,500000)});}catch(e){return res.status(502).json({error:String(e.message)})}
  }
  const url='https://investments.miraeasset.com/tigeretf/ko/customer/notice/view.do?listCnt=10&pageIndex=1&detailsKey=767&q=';
  const started=Date.now();
