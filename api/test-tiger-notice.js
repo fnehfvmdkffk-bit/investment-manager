@@ -12,6 +12,8 @@ export default async function handler(req,res){
   tigerList:'https://investments.miraeasset.com/tigeretf/ko/customer/notice/list.do?listCnt=30&pageIndex=1',
   tiger767:'https://investments.miraeasset.com/tigeretf/ko/customer/notice/view.do?listCnt=10&pageIndex=1&detailsKey=767&q=',
   tiger773:'https://investments.miraeasset.com/tigeretf/ko/customer/notice/view.do?listCnt=10&pageIndex=1&detailsKey=773&q=',
+  riseApiScript:'https://kbam.co.kr/_next/static/chunks/3spfrml5-c74l.js',
+  riseDividendSlash:'https://kbam.co.kr/api/products/etfs/44F8/dividend/?base_dt=20261030',
   riseProducts:'https://kbam.co.kr/api/products/etfs',
   riseSearch:'https://kbam.co.kr/api/products/etfs/search?keyword=490590',
   riseAutocomplete:'https://kbam.co.kr/api/products/etfs/autocomplete?keyword=490590',
@@ -26,7 +28,7 @@ export default async function handler(req,res){
   if(!allowed)return res.status(400).json({error:'unsupported_asset'});
   try{
    await load(urls.riseList);
-   if(target.pathname.endsWith('.png')){const r=await fetch(target,{signal:AbortSignal.timeout(18000)});if(!r.ok)throw Error('upstream_'+r.status);return res.status(200).json({base64:Buffer.from(await r.arrayBuffer()).toString('base64')});}
+   if(target.pathname.endsWith('.png')){const r=await fetch(target,{headers:{'User-Agent':'Mozilla/5.0','Accept':'image/avif,image/webp,image/*,*/*;q=0.8','Referer':urls.rise846},signal:AbortSignal.timeout(18000)});if(!r.ok)throw Error('upstream_'+r.status);return res.status(200).json({base64:Buffer.from(await r.arrayBuffer()).toString('base64')});}
    return res.status(200).json({html:await load(target.href,{sessionUrl:urls.riseList,headers:{Accept:'application/json','Referer':urls.riseList}})});
   }catch(e){return res.status(502).json({error:String(e.message)})}
  }
