@@ -25,15 +25,25 @@ export default async function handler(req,res){
   const allowed=target.origin==='https://kbam.co.kr'&&(inspect==='asset'?(/^\/_next\/static\/chunks\/[a-zA-Z0-9_.-]+\.js$/.test(target.pathname)||/^\/media\/tinymce\/[a-zA-Z0-9_./-]+\.png$/.test(target.pathname)):/^\/api\/products\/etfs(?:\/|$)/.test(target.pathname));
   if(!allowed)return res.status(400).json({error:'unsupported_asset'});
   try{
+   await load(urls.riseList);
    if(target.pathname.endsWith('.png')){const r=await fetch(target,{signal:AbortSignal.timeout(18000)});if(!r.ok)throw Error('upstream_'+r.status);return res.status(200).json({base64:Buffer.from(await r.arrayBuffer()).toString('base64')});}
    return res.status(200).json({html:await load(target.href)});
+  }catch(e){return res.status(502).json({error:String(e.message)})}
+ }
+ if(inspect==='tigerAjaxSession'){
+  try{
+   const base='https://investments.miraeasset.com';
+   const landing=await fetch(urls.tigerList,{headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html','Accept-Language':'ko-KR,ko;q=0.9'},signal:AbortSignal.timeout(12000)});
+   await landing.text();const cookie=landing.headers.getSetCookie().map(x=>x.split(';')[0]).join('; ');
+   const r=await fetch(base+'/tigeretf/ko/customer/notice/list.ajax',{method:'POST',headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html, */*; q=0.01','Content-Type':'application/x-www-form-urlencoded; charset=UTF-8','X-Requested-With':'XMLHttpRequest','Origin':base,'Referer':urls.tigerList,...(cookie?{Cookie:cookie}:{})},body:'firstIndex=0&listCnt=10&pageIndex=1&detailsKey=&q=',signal:AbortSignal.timeout(18000)});
+   return res.status(200).json({httpStatus:r.status,html:await r.text()});
   }catch(e){return res.status(502).json({error:String(e.message)})}
  }
  if(inspect==='riseScripts'){
   try{
    const home=await load(urls.riseList);
    const paths=[...new Set([...home.matchAll(/<script[^>]*src=["'](\/_next\/static\/chunks\/[^"']+\.js)["']/g)].map(x=>x[1]))];
-   const results=await Promise.all(paths.map(async path=>{try{const js=await load('https://kbam.co.kr'+path);return {path,bytes:js.length,endpoints:[...new Set([...js.matchAll(/[^\s"'`]{0,50}\/api\/[^\s"'`]{1,180}/g)].map(x=>x[0]))].slice(0,50),matches:[...js.matchAll(/.{0,130}(?:dividend|distribution|dividends|notices\/|\/funds\/|\/products\/).{0,250}/gi)].slice(0,25).map(x=>x[0])}}catch(e){return {path,error:String(e.message)}}}));
+   const results=await Promise.all(paths.map(async path=>{try{const js=await load('https://kbam.co.kr'+path);return {path,bytes:js.length,apiClient:js.includes('getEtfDividendDownloadUrl')?js.slice(0,8500):undefined,endpoints:[...new Set([...js.matchAll(/[^\s"'`]{0,50}\/api\/[^\s"'`]{1,180}/g)].map(x=>x[0]))].slice(0,50),matches:[...js.matchAll(/.{0,130}(?:dividend|distribution|dividends|notices\/|\/funds\/|\/products\/).{0,250}/gi)].slice(0,25).map(x=>x[0])}}catch(e){return {path,error:String(e.message)}}}));
    return res.status(200).json({results});
   }catch(e){return res.status(502).json({error:String(e.message)})}
  }
