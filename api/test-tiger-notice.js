@@ -27,7 +27,7 @@ export default async function handler(req,res){
   try{
    await load(urls.riseList);
    if(target.pathname.endsWith('.png')){const r=await fetch(target,{signal:AbortSignal.timeout(18000)});if(!r.ok)throw Error('upstream_'+r.status);return res.status(200).json({base64:Buffer.from(await r.arrayBuffer()).toString('base64')});}
-   return res.status(200).json({html:await load(target.href)});
+   return res.status(200).json({html:await load(target.href,{sessionUrl:urls.riseList,headers:{Accept:'application/json','Referer':urls.riseList}})});
   }catch(e){return res.status(502).json({error:String(e.message)})}
  }
  if(inspect==='tigerAjaxSession'){
