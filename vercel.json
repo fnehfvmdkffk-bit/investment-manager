@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/dividend.js": {
+      "regions": [
+        "icn1"
+      ],
+      "includeFiles": "node_modules/{tesseract.js,tesseract.js-core,@tesseract.js-data/kor}/**"
+    }
+  }
+}

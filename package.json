@@ -1,1 +1,1 @@
-{"name":"investment-manager","private":true,"type":"module","dependencies":{"@vercel/blob":"latest"}}
+{"name":"investment-manager","private":true,"type":"module","dependencies":{"@tesseract.js-data/kor":"1.0.0","@vercel/blob":"latest","pngjs":"7.0.0","tesseract.js":"6.0.1"}}
