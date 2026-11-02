@@ -1,9 +1,12 @@
+import {load} from '../lib/dividend-sources.js';
 // Diagnostic only: fetches one public TIGER ETF notice; never changes portfolio data.
 export default async function handler(req,res){
  res.setHeader('Cache-Control','no-store');
  if(req.method!=='GET')return res.status(405).json({error:'method_not_allowed'});
  const inspect=String(req.query?.inspect||'');
  const urls={
+  tigerController:'https://investments.miraeasset.com/tigeretf/common/js/controller/bm/bma/BMANoticeCtrl.js',
+  tigerDistribution:'https://investments.miraeasset.com/tigeretf/ko/distribution/annual/list.do',
   tigerList:'https://investments.miraeasset.com/tigeretf/ko/customer/notice/list.do?listCnt=30&pageIndex=1',
   tiger767:'https://investments.miraeasset.com/tigeretf/ko/customer/notice/view.do?listCnt=10&pageIndex=1&detailsKey=767&q=',
   tiger773:'https://investments.miraeasset.com/tigeretf/ko/customer/notice/view.do?listCnt=10&pageIndex=1&detailsKey=773&q=',
@@ -13,7 +16,7 @@ export default async function handler(req,res){
  };
  if(inspect){
   if(!urls[inspect])return res.status(400).json({error:'unsupported_source'});
-  try{const r=await fetch(urls[inspect],{headers:{'User-Agent':'Mozilla/5.0','Accept':'text/html','Accept-Language':'ko-KR,ko;q=0.9'},signal:AbortSignal.timeout(18000)});return res.status(200).json({source:urls[inspect],httpStatus:r.status,html:(await r.text()).slice(0,500000)});}catch(e){return res.status(502).json({error:String(e.message)})}
+  try{return res.status(200).json({source:urls[inspect],httpStatus:200,html:(await load(urls[inspect])).slice(0,500000)});}catch(e){return res.status(502).json({error:String(e.message)})}
  }
  const url='https://investments.miraeasset.com/tigeretf/ko/customer/notice/view.do?listCnt=10&pageIndex=1&detailsKey=767&q=';
  const started=Date.now();
