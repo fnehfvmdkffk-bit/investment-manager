@@ -1,0 +1,20 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/dividend.js": {
+      "regions": [
+        "icn1"
+      ]
+    },
+    "api/test-etf-managers.js": {
+      "regions": [
+        "icn1"
+      ]
+    },
+    "api/test-tiger-notice.js": {
+      "regions": [
+        "icn1"
+      ]
+    }
+  }
+}
