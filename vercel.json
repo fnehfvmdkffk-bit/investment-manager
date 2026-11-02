@@ -4,11 +4,11 @@
     "api/dividend.js": {
       "regions": [
         "icn1"
-      ]
-    },
-    "api/test-etf-managers.js": {
-      "regions": [
-        "icn1"
+      ],
+      "includeFiles": [
+        "node_modules/tesseract.js/src/worker-script/node/**",
+        "node_modules/tesseract.js-core/**",
+        "node_modules/@tesseract.js-data/kor/**"
       ]
     },
     "api/test-tiger-notice.js": {
