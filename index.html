@@ -192,7 +192,11 @@ function allDividendRows(account){
     const verifiedPay=record==='2026-10-15'?'2026-10-19':record==='2026-09-15'?'2026-09-17':'';
     if(verifiedPay&&!String(row['지급일']||'').trim())row['지급일']=verifiedPay;
   }
-  return result;
+  return result.sort((a,b)=>{
+    const first=String(a['기준일']||'9999-12-31');
+    const second=String(b['기준일']||'9999-12-31');
+    return first.localeCompare(second)||String(a['지급일']||'').localeCompare(String(b['지급일']||''));
+  });
 }
 function addDividend(){
   const baseDate=document.getElementById('divBaseDate').value;
