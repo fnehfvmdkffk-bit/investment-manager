@@ -28,3 +28,11 @@ test('RISE notices use the gross amount and both explicitly stated dates',()=>{c
 
 test('TIGER schedule reads a date before its label and ignores the calendar grid',()=>{const h='<h1>TIGER ETF 2026년 10월 중순 분배금 지급 안내</h1><table><tr><td>0008S0</td><td>TIGER ETF</td><td>92</td><td>1.00%</td></tr></table><table><tr><td>10/13 (화)</td><td>분배금 공시일</td></tr><tr><td>10/15 (목)</td><td>분배금 지급기준일</td></tr><tr><td>10/19 (월)</td><td>분배금 지급일 (예정)</td></tr></table>';const r=parseNotice(h,'0008S0','TIGER','https://investments.miraeasset.com/example');assert.equal(r[0].unit,92);assert.equal(r[0].recordDate,'2026-10-15');assert.equal(r[0].payDate,'2026-10-19')});
 test('dynamic notice IDs are discovered from TIGER JS links and RISE Flight JSON',()=>{const tiger='<li><a href="javascript:cmmCtrl.details(\'detailsKey\', \'982\', \'/view.do\');">2027년 1월 분배금 지급 안내</a></li>';assert.deepEqual(discoverNotices(tiger,'TIGER'),['982']);const payload='42:'+JSON.stringify({items:[{id:846,category:{id:1,name:'분배금'},title:'RISE ETF 10월 말 분배금 지급 안내'},{id:847,category:{id:2,name:'공지사항'},title:'다른 공지'},{id:842,category:{id:1,name:'분배금'},title:'RISE ETF 10월 중순 분배금 지급 안내'}]});const rise='<script>self.__next_f.push('+JSON.stringify([1,payload])+')</script>';assert.deepEqual(discoverNotices(rise,'RISE'),['846','842'])});
+test('RISE estimates with image-only dates retain the published amount without guessing dates',()=>{
+ const html='<h1>RISE ETF 11월 중순 분배금 지급 안내</h1><p>분배금은 변경될 수 있습니다.</p><table><tr><td>RISE ETF</td><td>490600</td><td>94</td><td>1.06%</td></tr></table>';
+ const [row]=parseNotice(html,'490600','RISE','https://kbam.co.kr/support/notice/854');
+ assert.equal(row.status,'estimated');
+ assert.equal(row.unit,94);
+ assert.equal(row.recordDate,'');
+ assert.equal(row.payDate,'');
+});

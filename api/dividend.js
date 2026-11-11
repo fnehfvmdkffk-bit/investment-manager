@@ -9,17 +9,33 @@ export default async function handler(req,res){
   const code=await resolveCode(name,String(req.query?.code||'').trim());
   if(!code)return res.status(404).json({error:'ticker_not_found',message:'종목코드 확인 필요'});
   const brand=name.match(/^(TIGER|KODEX|ACE|RISE|SOL|PLUS)\b/i)?.[1]?.toUpperCase();
+  const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  const respond=result=>{
+   const records=result.records||[];
+   const estimates=result.estimates||[];
+   const upcoming=records.filter(row=>row.officialVerified&&row.payDate>today);
+   const scheduled=upcoming.filter(row=>!estimates.some(estimate=>estimate.recordDate===row.recordDate));
+   return res.status(200).json({
+    name,code,...result,tax:'pre-tax',
+    records:records.filter(row=>!upcoming.includes(row)),
+    estimates:[...estimates,...scheduled.map(row=>({...row,status:'scheduled'}))]
+   });
+  };
   const cached=await readOfficialCache(brand,code);
-  if(cached&&cached.cacheAgeMs<15*60000)return res.status(200).json({name,code,...cached,tax:'pre-tax',checkedAt:cached.verifiedAt,cacheReason:'recently_verified'});
+  if(cached&&cached.cacheAgeMs<15*60000&&!['TIGER','RISE'].includes(brand))return respond({...cached,checkedAt:cached.verifiedAt,cacheReason:'recently_verified'});
   let officialError='';
   if(brand&&providers[brand]){
    try{
     const result=await providers[brand](code);
-    if(result.records.length){const checkedAt=new Date().toISOString();await writeOfficialCache(brand,code,result,checkedAt);return res.status(200).json({name,code,...result,tax:'pre-tax',checkedAt})}
+    if(result.records.length||result.estimates?.length){
+     const checkedAt=new Date().toISOString();
+     if(result.records.length)await writeOfficialCache(brand,code,result,checkedAt);
+     return respond({...result,records:result.records.length?result.records:cached?.records||[],checkedAt});
+    }
     officialError='official_records_empty';
    }catch(e){officialError=String(e.message||'official_source_unavailable')}
   }
-  if(cached)return res.status(200).json({name,code,...cached,tax:'pre-tax',checkedAt:cached.verifiedAt,cacheReason:'official_source_temporarily_unavailable',officialError,message:'원본 재조회 지연 · 검증된 공식 공지 자료 사용'});
+  if(cached)return respond({...cached,checkedAt:cached.verifiedAt,cacheReason:'official_source_temporarily_unavailable',officialError,message:'원본 재조회 지연 · 검증된 공식 공지 자료 사용'});
   // Preserve the existing third-party fallback and identify its provenance explicitly.
   try{
    const result=await calendar(code);
