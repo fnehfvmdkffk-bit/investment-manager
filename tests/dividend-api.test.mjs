@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 const source=fs.readFileSync(new URL('../api/dividend.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace('export default async function handler','async function handler');
-function setup(cache,provider){
+function setup(cache,provider,timers={setTimeout,clearTimeout}){
  const writes=[];
- const ctx=vm.createContext({resolveCode:async()=> '490590',providers:{RISE:provider},calendar:async()=>{throw Error('unverified fallback must not run')},readOfficialCache:async()=>cache,writeOfficialCache:async(...args)=>writes.push(args)});
+ const ctx=vm.createContext({...timers,resolveCode:async()=> '490590',providers:{RISE:provider},calendar:async()=>{throw Error('unverified fallback must not run')},readOfficialCache:async()=>cache,writeOfficialCache:async(...args)=>writes.push(args)});
  vm.runInContext(source,ctx);
  const res={setHeader(){},status(s){this.statusCode=s;return this},json(body){this.body=body;return this}};
  return {run:()=>ctx.handler({method:'GET',query:{name:'RISE ETF'}},res),res,writes};
@@ -43,5 +43,18 @@ test('an estimate without a confirmed history does not renew the official cache'
  assert.equal(c.res.statusCode,200);
  assert.equal(c.res.body.records.length,0);
  assert.equal(c.res.body.estimates[0].unit,94);
+ assert.equal(c.writes.length,0);
+});
+
+test('a stalled RISE notice returns verified history before the browser times out',async()=>{
+ const c=setup(cached,()=>new Promise(()=>{}),{
+  setTimeout(callback,ms){assert.equal(ms,18000);return setImmediate(callback)},
+  clearTimeout:clearImmediate
+ });
+ await c.run();
+ assert.equal(c.res.statusCode,200);
+ assert.equal(c.res.body.officialError,'official_source_timeout');
+ assert.equal(c.res.body.cached,true);
+ assert.equal(c.res.body.checkedAt,cached.verifiedAt);
  assert.equal(c.writes.length,0);
 });

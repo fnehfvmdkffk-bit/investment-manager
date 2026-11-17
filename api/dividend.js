@@ -1,6 +1,18 @@
 import {resolveCode} from '../lib/etf-codes.js';
 import {providers,calendar} from '../lib/dividend-sources.js';
 import {readOfficialCache,writeOfficialCache} from '../lib/source-cache.js';
+// Leave enough time to return verified history before the browser aborts.
+async function lookupRiseWithDeadline(lookup, timeoutMs){
+ let timer;
+ try{
+  return await Promise.race([
+   lookup(),
+   new Promise((_,reject)=>{
+    timer=setTimeout(()=>reject(new Error('official_source_timeout')),timeoutMs);
+   })
+  ]);
+ }finally{clearTimeout(timer)}
+}
 export default async function handler(req,res){
  res.setHeader('Cache-Control','no-store');
  if(req.method!=='GET')return res.status(405).json({error:'method_not_allowed'});
@@ -26,7 +38,10 @@ export default async function handler(req,res){
   let officialError='';
   if(brand&&providers[brand]){
    try{
-    const result=await providers[brand](code);
+    const lookup=()=>providers[brand](code);
+    const result=await (brand==='RISE'
+     ? lookupRiseWithDeadline(lookup,cached?18000:40000)
+     : lookup());
     if(result.records.length||result.estimates?.length){
      const checkedAt=new Date().toISOString();
      if(result.records.length)await writeOfficialCache(brand,code,result,checkedAt);
